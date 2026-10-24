@@ -16,7 +16,7 @@ const products = [
     description:
       'Seam-sealed waterproof shell with a packable hood and a relaxed everyday fit.',
     basePrice: 2500,
-    variants: ['S', 'M', 'L', 'XL'].map(label => ({
+    variants: ['S', 'M', 'L', 'XL'].map((label) => ({
       label,
       sku: `RDSJ-${label}`,
     })),
@@ -58,7 +58,7 @@ const products = [
     category: 'Clothing',
     description: 'Washed linen overshirt with chest pockets and a boxy cut.',
     basePrice: 1990,
-    variants: ['M', 'L', 'XL'].map(label => ({ label, sku: `LOS-${label}` })),
+    variants: ['M', 'L', 'XL'].map((label) => ({ label, sku: `LOS-${label}` })),
     specs: { material: '100% linen' },
   },
   {
@@ -98,9 +98,11 @@ async function seed() {
   );
 
   const created = await Product.insertMany(
-    products.map(product => ({ ...product, slug: slugify(product.name) })),
+    products.map((product) => ({ ...product, slug: slugify(product.name) })),
   );
-  const idByName = new Map(created.map(product => [product.name, product._id]));
+  const idByName = new Map(
+    created.map((product) => [product.name, product._id]),
+  );
   const productId = (name: string) => {
     const id = idByName.get(name);
     if (!id) throw new Error(`Unknown seed product: ${name}`);
@@ -159,7 +161,7 @@ async function seed() {
   ];
 
   await Drop.insertMany(
-    drops.map(drop => ({
+    drops.map((drop) => ({
       product: productId(drop.name),
       startsAt: fromNow(drop.starts),
       endsAt: fromNow(drop.ends),
@@ -174,7 +176,7 @@ async function seed() {
 
 seed()
   .then(() => mongoose.disconnect())
-  .catch(async error => {
+  .catch(async (error) => {
     console.error(error);
     await mongoose.disconnect();
     process.exit(1);

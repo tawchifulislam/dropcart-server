@@ -25,7 +25,7 @@ export const dropInput = z
     dropPrice: z.number().int().min(0),
     stockTotal: z.number().int().min(1).max(100000),
   })
-  .refine(value => value.endsAt > value.startsAt, {
+  .refine((value) => value.endsAt > value.startsAt, {
     path: ['endsAt'],
     message: 'endsAt must be after startsAt',
   });

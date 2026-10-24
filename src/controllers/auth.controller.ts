@@ -20,6 +20,8 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const MISSING_USER_HASH = bcrypt.hashSync('dropcart-timing-guard', 12);
+
 const baseCookie = {
   httpOnly: true,
   sameSite: 'lax',
@@ -69,9 +71,10 @@ export async function login(req: Request, res: Response) {
   const user = await User.findOne({ email: input.email }).select(
     '+passwordHash',
   );
-  const valid = user
-    ? await bcrypt.compare(input.password, user.passwordHash)
-    : false;
+  const valid = await bcrypt.compare(
+    input.password,
+    user?.passwordHash ?? MISSING_USER_HASH,
+  );
   if (!user || !valid) throw new AppError(401, 'Invalid email or password');
   startSession(res, user);
   res.json({ user: publicUser(user) });

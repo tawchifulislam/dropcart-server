@@ -42,13 +42,13 @@ export function toProductView(product: ProductRecord) {
 
 async function withProducts(drops: DropRecord[], now: Date) {
   const products = await Product.find({
-    _id: { $in: drops.map(drop => drop.product) },
+    _id: { $in: drops.map((drop) => drop.product) },
   }).lean<ProductRecord[]>();
   const byId = new Map(
-    products.map(product => [product._id.toString(), product]),
+    products.map((product) => [product._id.toString(), product]),
   );
 
-  return drops.flatMap(drop => {
+  return drops.flatMap((drop) => {
     const product = byId.get(drop.product.toString());
     return product
       ? [{ ...toDropView(drop, now), product: toProductView(product) }]
@@ -94,7 +94,7 @@ export async function findDrop(id: string) {
 export async function attachActiveDrops(products: ProductRecord[]) {
   const now = new Date();
   const drops = await Drop.find({
-    product: { $in: products.map(product => product._id) },
+    product: { $in: products.map((product) => product._id) },
     endsAt: { $gt: now },
   })
     .sort({ startsAt: 1 })
@@ -106,7 +106,7 @@ export async function attachActiveDrops(products: ProductRecord[]) {
     if (!nextByProduct.has(key)) nextByProduct.set(key, drop);
   }
 
-  return products.map(product => {
+  return products.map((product) => {
     const drop = nextByProduct.get(product._id.toString());
     return {
       ...toProductView(product),
