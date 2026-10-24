@@ -111,7 +111,7 @@ async function seed() {
     {
       name: 'Rain Day Shell Jacket',
       starts: -1,
-      ends: 3,
+      ends: 72,
       price: 1850,
       total: 10,
       remaining: 7,
@@ -119,7 +119,7 @@ async function seed() {
     {
       name: 'Cotton Everyday Tote',
       starts: -0.5,
-      ends: 5,
+      ends: 96,
       price: 550,
       total: 30,
       remaining: 12,
@@ -127,7 +127,7 @@ async function seed() {
     {
       name: 'Canvas Crab Bag',
       starts: 4,
-      ends: 7,
+      ends: 52,
       price: 1250,
       total: 20,
       remaining: 20,
@@ -135,7 +135,7 @@ async function seed() {
     {
       name: 'Ceramic Tea Cup Set',
       starts: 20,
-      ends: 24,
+      ends: 68,
       price: 950,
       total: 15,
       remaining: 15,
@@ -143,7 +143,7 @@ async function seed() {
     {
       name: 'Soy Wax Candle Trio',
       starts: 72,
-      ends: 76,
+      ends: 120,
       price: 700,
       total: 25,
       remaining: 25,
