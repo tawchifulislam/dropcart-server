@@ -1,10 +1,18 @@
 import { z } from 'zod';
 
+const imageSource = z
+  .string()
+  .trim()
+  .refine(
+    (value) => value.startsWith('/') || URL.canParse(value),
+    'Must be an absolute URL or a path starting with /',
+  );
+
 export const productInput = z.object({
   name: z.string().trim().min(2).max(120),
   description: z.string().trim().min(1).max(2000),
   category: z.string().trim().min(1).max(50),
-  images: z.array(z.url()).max(8).default([]),
+  images: z.array(imageSource).max(8).default([]),
   variants: z
     .array(
       z.object({

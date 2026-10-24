@@ -98,7 +98,10 @@ async function seed() {
   );
 
   const created = await Product.insertMany(
-    products.map((product) => ({ ...product, slug: slugify(product.name) })),
+    products.map((product) => {
+      const slug = slugify(product.name);
+      return { ...product, slug, images: [`/products/${slug}.jpg`] };
+    }),
   );
   const idByName = new Map(
     created.map((product) => [product.name, product._id]),
