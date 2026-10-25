@@ -43,10 +43,14 @@ export async function listCategories(_req: Request, res: Response) {
   res.json({ items: categories.sort() });
 }
 
-export async function getProduct(req: Request<{ id: string }>, res: Response) {
-  const product = isObjectId(req.params.id)
-    ? await Product.findById(req.params.id).lean<ProductRecord>()
-    : null;
+export async function getProduct(
+  req: Request<{ idOrSlug: string }>,
+  res: Response,
+) {
+  const { idOrSlug } = req.params;
+  const product = await Product.findOne(
+    isObjectId(idOrSlug) ? { _id: idOrSlug } : { slug: idOrSlug },
+  ).lean<ProductRecord>();
   if (!product) throw new AppError(404, 'Product not found');
   const [view] = await attachActiveDrops([product]);
   res.json(view);
