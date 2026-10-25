@@ -7,17 +7,24 @@ import { AUTH_COOKIE } from '../middleware/auth';
 import { User } from '../models/User';
 import { AppError } from '../utils/AppError';
 
-const email = z.string().trim().toLowerCase().pipe(z.email());
+const email = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(z.email('Enter a valid email address'));
 
 const registerSchema = z.object({
-  name: z.string().trim().min(2).max(80),
+  name: z.string().trim().min(2, 'Enter your name').max(80),
   email,
-  password: z.string().min(8).max(72),
+  password: z
+    .string()
+    .min(8, 'Use at least 8 characters')
+    .max(72, 'Use at most 72 characters'),
 });
 
 const loginSchema = z.object({
   email,
-  password: z.string().min(1),
+  password: z.string().min(1, 'Enter your password'),
 });
 
 const MISSING_USER_HASH = bcrypt.hashSync('dropcart-timing-guard', 12);

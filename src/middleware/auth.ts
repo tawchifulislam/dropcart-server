@@ -41,3 +41,9 @@ export function requireAdmin(req: Request, _res: Response, next: NextFunction) {
     return next(new AppError(403, 'Admin access required'));
   next();
 }
+export function currentUserId(req: Request) {
+  const userId = req.auth?.sub;
+  if (!userId)
+    throw new AppError(401, 'Authentication required', 'UNAUTHENTICATED');
+  return userId;
+}
