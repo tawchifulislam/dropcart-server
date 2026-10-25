@@ -5,6 +5,7 @@ import { Drop } from '../models/Drop';
 import { Product } from '../models/Product';
 import { User } from '../models/User';
 import { slugify } from '../utils/text';
+import { Reservation } from '../models/Reservation';
 
 const HOUR = 60 * 60 * 1000;
 const fromNow = (hours: number) => new Date(Date.now() + hours * HOUR);
@@ -85,7 +86,11 @@ async function seed() {
   }
 
   await connectDb();
-  await Promise.all([Product.deleteMany({}), Drop.deleteMany({})]);
+  await Promise.all([
+    Product.deleteMany({}),
+    Drop.deleteMany({}),
+    Reservation.deleteMany({}),
+  ]);
 
   await User.findOneAndUpdate(
     { email: email.toLowerCase() },
