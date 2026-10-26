@@ -60,4 +60,12 @@ export const stripeProvider: PaymentProvider = {
   async refund(paymentIntentId) {
     await getStripe().refunds.create({ payment_intent: paymentIntentId });
   },
+  async checkPaid(sessionId) {
+    const session = await getStripe().checkout.sessions.retrieve(sessionId);
+    const intent = session.payment_intent;
+    return {
+      paid: session.payment_status === 'paid',
+      paymentIntentId: typeof intent === 'string' ? intent : intent?.id,
+    };
+  },
 };

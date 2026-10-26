@@ -4,6 +4,7 @@ import {
   confirmMockPayment,
   getOrderView,
   startCheckout,
+  syncOrder,
 } from '../services/payment.service';
 import { AppError } from '../utils/AppError';
 import { isObjectId } from '../utils/text';
@@ -32,4 +33,11 @@ export async function mockConfirm(req: Request<{ id: string }>, res: Response) {
   const userId = currentUserId(req);
   await confirmMockPayment(orderId, userId);
   res.json(await getOrderView(orderId, userId));
+}
+export async function syncOrderStatus(
+  req: Request<{ id: string }>,
+  res: Response,
+) {
+  const orderId = parseId(req.params.id, 'Order');
+  res.json(await syncOrder(orderId, currentUserId(req)));
 }

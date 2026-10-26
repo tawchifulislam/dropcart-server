@@ -24,4 +24,9 @@ export interface PaymentProvider {
   urlFor(sessionId: string): Promise<string | null>;
   cancel(sessionId: string): Promise<void>;
   refund(paymentIntentId: string): Promise<void>;
+  checkPaid(sessionId: string): Promise<PaymentCheck>;
+}
+export interface PaymentCheck {
+  paid: boolean;
+  paymentIntentId?: string;
 }

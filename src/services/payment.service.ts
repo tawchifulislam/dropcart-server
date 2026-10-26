@@ -226,3 +226,18 @@ export async function getOrderView(orderId: string, userId: string) {
       : null,
   };
 }
+export async function syncOrder(orderId: string, userId: string) {
+  const order = await Order.findOne({
+    _id: orderId,
+    user: userId,
+  }).lean<OrderRecord>();
+  if (!order) throw new AppError(404, 'Order not found', 'NOT_FOUND');
+
+  const unsettled = order.status === 'pending' || order.status === 'cancelled';
+  if (unsettled && order.sessionId) {
+    const check = await paymentProvider.checkPaid(order.sessionId);
+    if (check.paid) await fulfillOrder(order, check.paymentIntentId);
+  }
+
+  return getOrderView(orderId, userId);
+}

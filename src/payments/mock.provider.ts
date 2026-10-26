@@ -25,4 +25,7 @@ export const mockProvider: PaymentProvider = {
   async refund() {
     return;
   },
+  async checkPaid() {
+    return { paid: false };
+  },
 };
