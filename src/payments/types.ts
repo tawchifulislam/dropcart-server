@@ -1,19 +1,27 @@
-export interface CreateIntentInput {
-  amount: number;
+export interface CreateSessionInput {
   orderId: string;
   reservationId: string;
+  dropId: string;
   userId: string;
+  customerEmail?: string;
+  productName: string;
+  productImageUrl?: string;
+  quantity: number;
+  unitAmount: number;
+  successUrl: string;
+  cancelUrl: string;
+  expiresAt: number;
 }
 
-export interface PaymentIntentRef {
+export interface PaymentSessionRef {
   id: string;
-  clientSecret: string;
+  url: string;
 }
 
 export interface PaymentProvider {
   readonly name: 'stripe' | 'mock';
-  createIntent(input: CreateIntentInput): Promise<PaymentIntentRef>;
-  clientSecretFor(intentId: string): Promise<string>;
-  cancel(intentId: string): Promise<void>;
-  refund(intentId: string): Promise<void>;
+  createSession(input: CreateSessionInput): Promise<PaymentSessionRef>;
+  urlFor(sessionId: string): Promise<string | null>;
+  cancel(sessionId: string): Promise<void>;
+  refund(paymentIntentId: string): Promise<void>;
 }

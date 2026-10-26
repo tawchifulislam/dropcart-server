@@ -19,6 +19,7 @@ const orderSchema = new Schema(
     amount: { type: Number, required: true, min: 0 },
     currency: { type: String, required: true },
     provider: { type: String, enum: ['stripe', 'mock'], required: true },
+    sessionId: { type: String, unique: true, sparse: true },
     paymentIntentId: { type: String, unique: true, sparse: true },
     status: {
       type: String,

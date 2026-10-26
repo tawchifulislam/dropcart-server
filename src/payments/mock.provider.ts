@@ -1,19 +1,21 @@
+import { env } from '../config/env';
 import type { PaymentProvider } from './types';
 
-const intentFor = (orderId: string) => `mock_pi_${orderId}`;
-const secretFor = (intentId: string) =>
-  `mock_secret_${intentId.replace('mock_pi_', '')}`;
+const PREFIX = 'mock_cs_';
+
+const mockUrl = (sessionId: string) =>
+  `${env.CLIENT_ORIGIN}/checkout/mock/${sessionId.slice(PREFIX.length)}`;
 
 export const mockProvider: PaymentProvider = {
   name: 'mock',
 
-  async createIntent({ orderId }) {
-    const id = intentFor(orderId);
-    return { id, clientSecret: secretFor(id) };
+  async createSession({ orderId }) {
+    const id = `${PREFIX}${orderId}`;
+    return { id, url: mockUrl(id) };
   },
 
-  async clientSecretFor(intentId) {
-    return secretFor(intentId);
+  async urlFor(sessionId) {
+    return mockUrl(sessionId);
   },
 
   async cancel() {

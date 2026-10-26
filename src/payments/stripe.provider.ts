@@ -4,37 +4,60 @@ import type { PaymentProvider } from './types';
 
 const MINOR_UNITS = 100;
 
-function requireSecret(secret: string | null) {
-  if (!secret) throw new Error('Stripe did not return a client secret');
-  return secret;
-}
-
 export const stripeProvider: PaymentProvider = {
   name: 'stripe',
 
-  async createIntent({ amount, orderId, reservationId, userId }) {
-    const intent = await getStripe().paymentIntents.create(
+  async createSession(input) {
+    const metadata = {
+      orderId: input.orderId,
+      reservationId: input.reservationId,
+      dropId: input.dropId,
+      userId: input.userId,
+    };
+
+    const session = await getStripe().checkout.sessions.create(
       {
-        amount: amount * MINOR_UNITS,
-        currency: env.PAYMENT_CURRENCY,
-        automatic_payment_methods: { enabled: true },
-        metadata: { orderId, reservationId, userId },
+        mode: 'payment',
+        client_reference_id: input.orderId,
+        customer_email: input.customerEmail,
+        line_items: [
+          {
+            quantity: input.quantity,
+            price_data: {
+              currency: env.PAYMENT_CURRENCY,
+              unit_amount: input.unitAmount * MINOR_UNITS,
+              product_data: {
+                name: input.productName,
+                ...(input.productImageUrl
+                  ? { images: [input.productImageUrl] }
+                  : {}),
+              },
+            },
+          },
+        ],
+        metadata,
+        payment_intent_data: { metadata },
+        success_url: input.successUrl,
+        cancel_url: input.cancelUrl,
+        expires_at: input.expiresAt,
       },
-      { idempotencyKey: `payment-intent-${orderId}` },
+      { idempotencyKey: `checkout-session-${input.orderId}` },
     );
-    return { id: intent.id, clientSecret: requireSecret(intent.client_secret) };
+
+    if (!session.url) throw new Error('Stripe did not return a checkout URL');
+    return { id: session.id, url: session.url };
   },
 
-  async clientSecretFor(intentId) {
-    const intent = await getStripe().paymentIntents.retrieve(intentId);
-    return requireSecret(intent.client_secret);
+  async urlFor(sessionId) {
+    const session = await getStripe().checkout.sessions.retrieve(sessionId);
+    return session.status === 'open' ? session.url : null;
   },
 
-  async cancel(intentId) {
-    await getStripe().paymentIntents.cancel(intentId);
+  async cancel(sessionId) {
+    await getStripe().checkout.sessions.expire(sessionId);
   },
 
-  async refund(intentId) {
-    await getStripe().refunds.create({ payment_intent: intentId });
+  async refund(paymentIntentId) {
+    await getStripe().refunds.create({ payment_intent: paymentIntentId });
   },
 };
