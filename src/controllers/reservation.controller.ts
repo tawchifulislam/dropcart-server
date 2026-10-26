@@ -5,6 +5,7 @@ import { toDropView } from '../services/drop.service';
 import {
   MAX_QUANTITY,
   findActiveReservation,
+  getUserReservation,
   listUserReservations,
   releaseReservation,
   reserveUnits,
@@ -56,4 +57,17 @@ export async function release(req: Request<{ id: string }>, res: Response) {
 
 export async function listMine(req: Request, res: Response) {
   res.json({ items: await listUserReservations(currentUserId(req)) });
+}
+export async function getReservation(
+  req: Request<{ id: string }>,
+  res: Response,
+) {
+  const reservationId = parseId(req.params.id, 'Reservation');
+  const reservation = await getUserReservation(
+    reservationId,
+    currentUserId(req),
+  );
+  if (!reservation)
+    throw new AppError(404, 'Reservation not found', 'NOT_FOUND');
+  res.json({ reservation });
 }

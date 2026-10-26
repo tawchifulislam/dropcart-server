@@ -4,6 +4,7 @@ import { Product, ProductRecord } from '../models/Product';
 import { Reservation, ReservationRecord } from '../models/Reservation';
 import { AppError } from '../utils/AppError';
 import { isDuplicateKeyError } from '../utils/mongo';
+import { cancelPendingPayment } from './payment.service';
 
 export const MAX_QUANTITY = 2;
 
@@ -71,6 +72,7 @@ export async function releaseExpiredReservations() {
       { _id: reservation.drop },
       { $inc: { stockRemaining: reservation.quantity } },
     );
+    void cancelPendingPayment(reservation._id);
     released += 1;
   }
 }
@@ -155,6 +157,7 @@ export async function releaseReservation(
   );
   if (!reservation)
     throw new AppError(404, 'Active reservation not found', 'NOT_FOUND');
+  void cancelPendingPayment(reservation._id);
   const drop = await Drop.findByIdAndUpdate(
     reservation.drop,
     { $inc: { stockRemaining: reservation.quantity } },
@@ -163,12 +166,8 @@ export async function releaseReservation(
   if (!drop) throw new AppError(404, 'Drop not found', 'NOT_FOUND');
   return drop.toObject<DropRecord>();
 }
-export async function listUserReservations(userId: string) {
+async function loadHistory(reservations: ReservationRecord[]) {
   const now = new Date();
-  const reservations = await Reservation.find({ user: userId })
-    .sort({ _id: -1 })
-    .limit(50)
-    .lean<ReservationRecord[]>();
   const drops = await Drop.find({
     _id: { $in: reservations.map((item) => item.drop) },
   }).lean<DropRecord[]>();
@@ -194,6 +193,10 @@ export async function listUserReservations(userId: string) {
         quantity: reservation.quantity,
         status: expired ? 'expired' : reservation.status,
         expiresAt: reservation.expiresAt,
+        expiresInMs: expired
+          ? 0
+          : Math.max(0, reservation.expiresAt.getTime() - now.getTime()),
+        holdMs: HOLD_MS,
         createdAt: reservation._id.getTimestamp(),
         dropPrice: drop.dropPrice,
         product: {
@@ -205,4 +208,25 @@ export async function listUserReservations(userId: string) {
       },
     ];
   });
+}
+
+export async function listUserReservations(userId: string) {
+  const reservations = await Reservation.find({ user: userId })
+    .sort({ _id: -1 })
+    .limit(50)
+    .lean<ReservationRecord[]>();
+  return loadHistory(reservations);
+}
+
+export async function getUserReservation(
+  reservationId: string,
+  userId: string,
+) {
+  const reservation = await Reservation.findOne({
+    _id: reservationId,
+    user: userId,
+  }).lean<ReservationRecord>();
+  if (!reservation) return null;
+  const [item] = await loadHistory([reservation]);
+  return item ?? null;
 }
