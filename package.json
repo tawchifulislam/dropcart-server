@@ -10,7 +10,8 @@
     "start": "node dist/index.js",
     "seed": "tsx src/scripts/seed.ts",
     "typecheck": "tsc --noEmit",
-    "load-test": "tsx src/scripts/load-test.ts"
+    "load-test": "tsx src/scripts/load-test.ts",
+    "payment-test": "tsx src/scripts/payment-test.ts"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +27,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.11.3",
     "morgan": "^1.12.1",
+    "stripe": "^23.0.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
