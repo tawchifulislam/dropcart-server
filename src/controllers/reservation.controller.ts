@@ -5,6 +5,7 @@ import { toDropView } from '../services/drop.service';
 import {
   MAX_QUANTITY,
   findActiveReservation,
+  listUserReservations,
   releaseReservation,
   reserveUnits,
   toReservationView,
@@ -51,4 +52,8 @@ export async function release(req: Request<{ id: string }>, res: Response) {
   const reservationId = parseId(req.params.id, 'Reservation');
   const drop = await releaseReservation(reservationId, currentUserId(req));
   res.json({ drop: toDropView(drop) });
+}
+
+export async function listMine(req: Request, res: Response) {
+  res.json({ items: await listUserReservations(currentUserId(req)) });
 }

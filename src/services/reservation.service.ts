@@ -1,5 +1,6 @@
 import { env } from '../config/env';
 import { Drop, DropRecord } from '../models/Drop';
+import { Product, ProductRecord } from '../models/Product';
 import { Reservation, ReservationRecord } from '../models/Reservation';
 import { AppError } from '../utils/AppError';
 import { isDuplicateKeyError } from '../utils/mongo';
@@ -161,4 +162,47 @@ export async function releaseReservation(
   );
   if (!drop) throw new AppError(404, 'Drop not found', 'NOT_FOUND');
   return drop.toObject<DropRecord>();
+}
+export async function listUserReservations(userId: string) {
+  const now = new Date();
+  const reservations = await Reservation.find({ user: userId })
+    .sort({ _id: -1 })
+    .limit(50)
+    .lean<ReservationRecord[]>();
+  const drops = await Drop.find({
+    _id: { $in: reservations.map((item) => item.drop) },
+  }).lean<DropRecord[]>();
+  const products = await Product.find({
+    _id: { $in: drops.map((drop) => drop.product) },
+  }).lean<ProductRecord[]>();
+
+  const dropById = new Map(drops.map((drop) => [drop._id.toString(), drop]));
+  const productById = new Map(
+    products.map((product) => [product._id.toString(), product]),
+  );
+
+  return reservations.flatMap((reservation) => {
+    const drop = dropById.get(reservation.drop.toString());
+    const product = drop ? productById.get(drop.product.toString()) : undefined;
+    if (!drop || !product) return [];
+    const expired =
+      reservation.status === 'active' && reservation.expiresAt <= now;
+    return [
+      {
+        id: reservation._id.toString(),
+        dropId: drop._id.toString(),
+        quantity: reservation.quantity,
+        status: expired ? 'expired' : reservation.status,
+        expiresAt: reservation.expiresAt,
+        createdAt: reservation._id.getTimestamp(),
+        dropPrice: drop.dropPrice,
+        product: {
+          id: product._id.toString(),
+          name: product.name,
+          slug: product.slug,
+          image: product.images[0],
+        },
+      },
+    ];
+  });
 }
