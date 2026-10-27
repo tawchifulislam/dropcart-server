@@ -16,6 +16,8 @@ const schema = z
     PAYMENT_CURRENCY: z.string().length(3).toLowerCase().default('bdt'),
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
+    GEMINI_API_KEY: z.string().optional(),
+    GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
   })
   .refine(
     (value) =>
