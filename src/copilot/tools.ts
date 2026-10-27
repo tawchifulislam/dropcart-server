@@ -1,16 +1,12 @@
 import { type FunctionDeclaration, Type } from '@google/genai';
 import { z } from 'zod';
-import { listLiveDrops } from '../services/drop.service';
+import { Product, ProductRecord } from '../models/Product';
 import { addToCart } from '../services/cart.service';
+import { attachActiveDrops, listLiveDrops } from '../services/drop.service';
 import { MAX_QUANTITY } from '../services/reservation.service';
 import { AppError } from '../utils/AppError';
-import {
-  cardFromDrop,
-  currentPrice,
-  searchCatalog,
-  statusOf,
-  toCard,
-} from './search';
+import { isObjectId } from '../utils/text';
+import { currentPrice, searchCatalog, statusOf, toCard } from './search';
 import type { CopilotAction, ProductCard } from './types';
 
 export interface ToolContext {
@@ -28,7 +24,7 @@ export const toolDeclarations: FunctionDeclaration[] = [
   {
     name: 'searchProducts',
     description:
-      'Search the DropCart catalog. Use short keywords (one to three words) and optionally a maximum current price in taka. Returns real products with their current price and drop status. If nothing matches, try different keywords before giving up.',
+      'Search the DropCart catalog. Use short keywords (one to three words) and optionally a maximum current price in taka. Omit the query to browse everything. Returns real products with their current price and drop status. If nothing matches, try different keywords before giving up.',
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -48,6 +44,22 @@ export const toolDeclarations: FunctionDeclaration[] = [
     name: 'listLiveDrops',
     description:
       'List the drops that are live right now, with the stock that remains.',
+  },
+  {
+    name: 'showProducts',
+    description:
+      'Show product cards in the chat for the products you recommend. Use ids returned by searchProducts or listLiveDrops. Show at most 4, and only products that fit the request.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        productIds: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: 'Product ids to show.',
+        },
+      },
+      required: ['productIds'],
+    },
   },
   {
     name: 'addToCart',
@@ -115,7 +127,6 @@ async function runSearch(args: Record<string, unknown>): Promise<ToolOutcome> {
         : {}),
     },
     trace: `Searched the store: ${label}${budget}, ${results.length} found`,
-    products: items.slice(0, 4).map(toCard),
   };
 }
 
@@ -133,8 +144,31 @@ async function runLiveDrops(): Promise<ToolOutcome> {
   return {
     response: { count: results.length, results },
     trace: `Checked live drops, ${results.length} found`,
-    products: drops.slice(0, 4).map(cardFromDrop),
   };
+}
+
+const showArgs = z.object({
+  productIds: z.array(z.string().trim()).min(1).max(4),
+});
+
+async function runShowProducts(
+  args: Record<string, unknown>,
+): Promise<ToolOutcome> {
+  const parsed = showArgs.safeParse(args);
+  if (!parsed.success)
+    return { response: { error: 'Invalid arguments for showProducts.' } };
+
+  const ids = parsed.data.productIds.filter(isObjectId);
+  const products = await Product.find({ _id: { $in: ids } }).lean<
+    ProductRecord[]
+  >();
+  const items = await attachActiveDrops(products);
+  const position = new Map(ids.map((id, index) => [id, index]));
+  const cards = items
+    .sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0))
+    .map(toCard);
+
+  return { response: { shown: cards.length }, products: cards };
 }
 
 async function runAddToCart(
@@ -187,6 +221,8 @@ export async function executeTool(
       return runSearch(args);
     case 'listLiveDrops':
       return runLiveDrops();
+    case 'showProducts':
+      return runShowProducts(args);
     case 'addToCart':
       return runAddToCart(args, context);
     default:
