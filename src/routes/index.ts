@@ -6,6 +6,8 @@ import dropRoutes from './drop.routes';
 import orderRoutes from './order.routes';
 import productRoutes from './product.routes';
 import reservationRoutes from './reservation.routes';
+import cartRoutes from './cart.routes';
+import copilotRoutes from './copilot.routes';
 
 const router = Router();
 
@@ -16,5 +18,7 @@ router.use('/reservations', reservationRoutes);
 router.use('/checkout', checkoutRoutes);
 router.use('/orders', orderRoutes);
 router.use('/admin', adminRoutes);
+router.use('/cart', cartRoutes);
+router.use('/copilot', copilotRoutes);
 
 export default router;

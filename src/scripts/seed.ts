@@ -7,6 +7,7 @@ import { User } from '../models/User';
 import { slugify } from '../utils/text';
 import { Reservation } from '../models/Reservation';
 import { Order } from '../models/Order';
+import { Cart } from '../models/Cart';
 
 const HOUR = 60 * 60 * 1000;
 const fromNow = (hours: number) => new Date(Date.now() + hours * HOUR);
@@ -92,6 +93,7 @@ async function seed() {
     Drop.deleteMany({}),
     Reservation.deleteMany({}),
     Order.deleteMany({}),
+    Cart.deleteMany({}),
   ]);
 
   await User.findOneAndUpdate(
