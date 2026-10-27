@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { connectDb } from '../config/db';
 import { Drop } from '../models/Drop';
 import { Product } from '../models/Product';
@@ -66,19 +66,47 @@ const products = [
   },
   {
     name: 'Handloom Scarf',
-    category: 'Accessories',
-    description: 'Lightweight handloom cotton scarf woven in small batches.',
-    basePrice: 1100,
-    specs: { material: 'Handloom cotton' },
+    starts: -170,
+    ends: -166,
+    price: 850,
+    total: 12,
+    remaining: 0,
   },
   {
     name: 'Folding Umbrella',
-    category: 'Accessories',
-    description: 'Compact windproof umbrella with a reflective trim.',
-    basePrice: 850,
-    specs: { ribs: '8' },
+    starts: -120,
+    ends: -116,
+    price: 650,
+    total: 20,
+    remaining: 3,
   },
 ];
+
+async function seedSales(dropId: Types.ObjectId, price: number, units: number) {
+  const buyers = Array.from({ length: units }, () => new Types.ObjectId());
+  const reservations = await Reservation.insertMany(
+    buyers.map((user) => ({
+      drop: dropId,
+      user,
+      quantity: 1,
+      expiresAt: new Date(Date.now() - 86_400_000),
+      status: 'completed',
+    })),
+  );
+  await Order.insertMany(
+    reservations.map((reservation) => ({
+      user: reservation.user,
+      drop: dropId,
+      reservation: reservation._id,
+      quantity: 1,
+      amount: price,
+      currency: 'bdt',
+      provider: 'mock',
+      status: 'paid',
+      paidAt: new Date(),
+    })),
+  );
+}
 
 async function seed() {
   const email = process.env.ADMIN_EMAIL;
@@ -172,7 +200,7 @@ async function seed() {
     },
   ];
 
-  await Drop.insertMany(
+  const createdDrops = await Drop.insertMany(
     drops.map((drop) => ({
       product: productId(drop.name),
       startsAt: fromNow(drop.starts),
@@ -182,6 +210,12 @@ async function seed() {
       stockRemaining: drop.remaining,
     })),
   );
+
+  for (const [index, created] of createdDrops.entries()) {
+    const { total, remaining, price } = drops[index];
+    const sold = total - remaining;
+    if (sold > 0) await seedSales(created._id, price, sold);
+  }
 
   console.log(`Seeded ${created.length} products and ${drops.length} drops`);
 }
