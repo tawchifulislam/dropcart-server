@@ -1,5 +1,6 @@
 import { env } from '../config/env';
 import { Drop, DropRecord } from '../models/Drop';
+import { Order, OrderRecord } from '../models/Order';
 import { Product, ProductRecord } from '../models/Product';
 import { Reservation, ReservationRecord } from '../models/Reservation';
 import { AppError } from '../utils/AppError';
@@ -175,6 +176,13 @@ async function loadHistory(reservations: ReservationRecord[]) {
     _id: { $in: drops.map((drop) => drop.product) },
   }).lean<ProductRecord[]>();
 
+  const orders = await Order.find({
+    reservation: { $in: reservations.map((item) => item._id) },
+  }).lean<OrderRecord[]>();
+  const orderByReservation = new Map(
+    orders.map((order) => [order.reservation.toString(), order]),
+  );
+
   const dropById = new Map(drops.map((drop) => [drop._id.toString(), drop]));
   const productById = new Map(
     products.map((product) => [product._id.toString(), product]),
@@ -197,6 +205,9 @@ async function loadHistory(reservations: ReservationRecord[]) {
           ? 0
           : Math.max(0, reservation.expiresAt.getTime() - now.getTime()),
         holdMs: HOLD_MS,
+        orderId:
+          orderByReservation.get(reservation._id.toString())?._id.toString() ??
+          null,
         createdAt: reservation._id.getTimestamp(),
         dropPrice: drop.dropPrice,
         product: {
