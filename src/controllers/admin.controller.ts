@@ -10,6 +10,7 @@ import {
 } from '../services/drop.service';
 import { AppError } from '../utils/AppError';
 import { isObjectId, slugify } from '../utils/text';
+import { getDropStats, getOverview } from '../services/admin.service';
 
 export async function listAdminDrops(_req: Request, res: Response) {
   res.json({ items: await listAllDrops() });
@@ -72,4 +73,14 @@ export async function updateDrop(req: Request<{ id: string }>, res: Response) {
   });
   await drop.save();
   res.json(toDropView(drop.toObject<DropRecord>()));
+}
+export async function adminOverview(_req: Request, res: Response) {
+  res.json(await getOverview());
+}
+
+export async function adminDropStats(
+  req: Request<{ id: string }>,
+  res: Response,
+) {
+  res.json(await getDropStats(req.params.id));
 }
