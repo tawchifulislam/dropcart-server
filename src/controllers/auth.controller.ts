@@ -36,6 +36,7 @@ const baseCookie = {
 } as const;
 
 interface SessionUser {
+  _id: { getTimestamp(): Date };
   id: string;
   name: string;
   email: string;
@@ -57,6 +58,7 @@ const publicUser = (user: SessionUser) => ({
   name: user.name,
   email: user.email,
   role: user.role,
+  joinedAt: user._id.getTimestamp(),
 });
 
 export async function register(req: Request, res: Response) {

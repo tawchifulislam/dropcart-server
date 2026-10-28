@@ -18,6 +18,7 @@ const productSchema = new Schema(
     variants: { type: [variantSchema], default: [] },
     specs: { type: Schema.Types.Mixed, default: {} },
     basePrice: { type: Number, required: true, min: 0 },
+    owner: { type: Schema.Types.ObjectId, ref: 'User', index: true },
   },
   { timestamps: true },
 );

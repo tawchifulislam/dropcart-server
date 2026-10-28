@@ -40,7 +40,7 @@ export function toProductView(product: ProductRecord) {
   };
 }
 
-async function withProducts(drops: DropRecord[], now: Date) {
+export async function withProducts(drops: DropRecord[], now: Date) {
   const products = await Product.find({
     _id: { $in: drops.map((drop) => drop.product) },
   }).lean<ProductRecord[]>();

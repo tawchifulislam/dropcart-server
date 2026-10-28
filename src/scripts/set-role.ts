@@ -1,12 +1,10 @@
 import mongoose from 'mongoose';
 import { connectDb } from '../config/db';
-import { User } from '../models/User';
-
-const ROLES = ['shopper', 'admin'];
+import { ROLES, User } from '../models/User';
 
 async function run() {
   const [email, role = 'admin'] = process.argv.slice(2);
-  if (!email || !ROLES.includes(role)) {
+  if (!email || !(ROLES as readonly string[]).includes(role)) {
     throw new Error(`Usage: npm run set-role -- <email> [${ROLES.join('|')}]`);
   }
 

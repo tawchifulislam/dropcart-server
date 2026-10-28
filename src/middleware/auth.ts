@@ -1,18 +1,25 @@
 import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import { Types } from 'mongoose';
 import { env } from '../config/env';
+import { Role, User } from '../models/User';
 import { AppError } from '../utils/AppError';
-import { User } from '../models/User';
 
 export interface AuthPayload {
   sub: string;
   role: 'shopper' | 'admin';
 }
 
+export interface Actor {
+  id: string;
+  role: Role;
+}
+
 declare global {
   namespace Express {
     interface Request {
       auth?: AuthPayload;
+      actor?: Actor;
     }
   }
 }
@@ -37,21 +44,32 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
   }
 }
 
-export async function requireAdmin(
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-) {
-  const user = await User.findById(currentUserId(req))
-    .select('role')
-    .lean<{ role: string }>();
-  if (user?.role !== 'admin')
-    throw new AppError(403, 'Admin access required', 'FORBIDDEN');
-  next();
-}
 export function currentUserId(req: Request) {
   const userId = req.auth?.sub;
   if (!userId)
     throw new AppError(401, 'Authentication required', 'UNAUTHENTICATED');
   return userId;
+}
+
+export function requireRole(...roles: Role[]) {
+  return async (req: Request, _res: Response, next: NextFunction) => {
+    const user = await User.findById(currentUserId(req))
+      .select('role')
+      .lean<{ _id: Types.ObjectId; role: Role }>();
+    if (!user || !roles.includes(user.role)) {
+      throw new AppError(
+        403,
+        'You do not have access to this area',
+        'FORBIDDEN',
+      );
+    }
+    req.actor = { id: user._id.toString(), role: user.role };
+    next();
+  };
+}
+
+export function currentActor(req: Request) {
+  if (!req.actor)
+    throw new AppError(403, 'You do not have access to this area', 'FORBIDDEN');
+  return req.actor;
 }
