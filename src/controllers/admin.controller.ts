@@ -94,6 +94,9 @@ async function requireManagedDrop(actor: Actor, id: string) {
 export async function createDrop(req: Request, res: Response) {
   const actor = currentActor(req);
   const input = dropInput.parse(req.body);
+  if (input.endsAt <= new Date()) {
+    throw new AppError(400, 'The end time must be in the future', 'BAD_TIME');
+  }
   await assertManagesProduct(actor, input.productId);
   const drop = await Drop.create({
     product: input.productId,
@@ -140,4 +143,16 @@ export async function changeUserRole(
 ) {
   const { role } = roleBody.parse(req.body);
   res.json(await setUserRole(currentActor(req).id, req.params.id, role));
+}
+export async function deleteDrop(req: Request<{ id: string }>, res: Response) {
+  const drop = await requireManagedDrop(currentActor(req), req.params.id);
+  if (getDropStatus(drop, new Date()) !== 'upcoming') {
+    throw new AppError(
+      409,
+      'Only upcoming drops can be deleted',
+      'DROP_LOCKED',
+    );
+  }
+  await drop.deleteOne();
+  res.status(204).end();
 }

@@ -5,6 +5,7 @@ import {
   changeUserRole,
   createDrop,
   createProduct,
+  deleteDrop,
   listAdminDrops,
   listAdminProducts,
   listUsers,
@@ -24,6 +25,7 @@ router.get('/drops', manage, listAdminDrops);
 router.get('/drops/:id/stats', manage, adminDropStats);
 router.post('/drops', manage, createDrop);
 router.put('/drops/:id', manage, updateDrop);
+router.delete('/drops/:id', manage, deleteDrop);
 router.get('/products', manage, listAdminProducts);
 router.post('/products', manage, createProduct);
 router.put('/products/:id', manage, updateProduct);
