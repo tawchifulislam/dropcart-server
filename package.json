@@ -12,7 +12,9 @@
     "typecheck": "tsc --noEmit",
     "load-test": "tsx src/scripts/load-test.ts",
     "payment-test": "tsx src/scripts/payment-test.ts",
-    "copilot-test": "tsx src/scripts/copilot-test.ts"
+    "copilot-test": "tsx src/scripts/copilot-test.ts",
+    "db:reset": "tsx src/scripts/reset-db.ts",
+    "set-role": "tsx src/scripts/set-role.ts"
   },
   "keywords": [],
   "author": "",

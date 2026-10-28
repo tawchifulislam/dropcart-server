@@ -1,13 +1,12 @@
-import bcrypt from 'bcryptjs';
 import mongoose, { Types } from 'mongoose';
 import { connectDb } from '../config/db';
-import { Drop } from '../models/Drop';
-import { Product } from '../models/Product';
-import { User } from '../models/User';
-import { slugify } from '../utils/text';
-import { Reservation } from '../models/Reservation';
-import { Order } from '../models/Order';
 import { Cart } from '../models/Cart';
+import { Drop } from '../models/Drop';
+import { Order } from '../models/Order';
+import { Product } from '../models/Product';
+import { Reservation } from '../models/Reservation';
+import { slugify } from '../utils/text';
+import { env } from '../config/env';
 
 const HOUR = 60 * 60 * 1000;
 const fromNow = (hours: number) => new Date(Date.now() + hours * HOUR);
@@ -66,6 +65,71 @@ const products = [
   },
   {
     name: 'Handloom Scarf',
+    category: 'Accessories',
+    description: 'Lightweight handloom cotton scarf woven in small batches.',
+    basePrice: 1100,
+    specs: { material: 'Handloom cotton' },
+  },
+  {
+    name: 'Folding Umbrella',
+    category: 'Accessories',
+    description: 'Compact windproof umbrella with a reflective trim.',
+    basePrice: 850,
+    specs: { ribs: '8' },
+  },
+];
+
+const drops = [
+  {
+    name: 'Rain Day Shell Jacket',
+    starts: -1,
+    ends: 72,
+    price: 1850,
+    total: 10,
+    remaining: 7,
+  },
+  {
+    name: 'Cotton Everyday Tote',
+    starts: -0.5,
+    ends: 96,
+    price: 550,
+    total: 30,
+    remaining: 12,
+  },
+  {
+    name: 'Canvas Crab Bag',
+    starts: 4,
+    ends: 52,
+    price: 1250,
+    total: 20,
+    remaining: 20,
+  },
+  {
+    name: 'Ceramic Tea Cup Set',
+    starts: 20,
+    ends: 68,
+    price: 950,
+    total: 15,
+    remaining: 15,
+  },
+  {
+    name: 'Soy Wax Candle Trio',
+    starts: 72,
+    ends: 120,
+    price: 700,
+    total: 25,
+    remaining: 25,
+  },
+  {
+    name: 'Linen Overshirt',
+    starts: -50,
+    ends: -46,
+    price: 1490,
+    total: 10,
+    remaining: 0,
+  },
+  {
+    name: 'Handloom Scarf',
     starts: -170,
     ends: -166,
     price: 850,
@@ -89,7 +153,7 @@ async function seedSales(dropId: Types.ObjectId, price: number, units: number) {
       drop: dropId,
       user,
       quantity: 1,
-      expiresAt: new Date(Date.now() - 86_400_000),
+      expiresAt: new Date(Date.now() - 24 * HOUR),
       status: 'completed',
     })),
   );
@@ -109,12 +173,8 @@ async function seedSales(dropId: Types.ObjectId, price: number, units: number) {
 }
 
 async function seed() {
-  const email = process.env.ADMIN_EMAIL;
-  const password = process.env.ADMIN_PASSWORD;
-  if (!email || !password) {
-    throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD are required to seed');
-  }
-
+  if (env.NODE_ENV === 'production')
+    throw new Error('Refusing to seed a production database');
   await connectDb();
   await Promise.all([
     Product.deleteMany({}),
@@ -123,16 +183,6 @@ async function seed() {
     Order.deleteMany({}),
     Cart.deleteMany({}),
   ]);
-
-  await User.findOneAndUpdate(
-    { email: email.toLowerCase() },
-    {
-      name: 'DropCart Admin',
-      passwordHash: await bcrypt.hash(password, 12),
-      role: 'admin',
-    },
-    { upsert: true },
-  );
 
   const created = await Product.insertMany(
     products.map((product) => {
@@ -149,57 +199,6 @@ async function seed() {
     return id;
   };
 
-  const drops = [
-    {
-      name: 'Rain Day Shell Jacket',
-      starts: -1,
-      ends: 72,
-      price: 1850,
-      total: 10,
-      remaining: 7,
-    },
-    {
-      name: 'Cotton Everyday Tote',
-      starts: -0.5,
-      ends: 96,
-      price: 550,
-      total: 30,
-      remaining: 12,
-    },
-    {
-      name: 'Canvas Crab Bag',
-      starts: 4,
-      ends: 52,
-      price: 1250,
-      total: 20,
-      remaining: 20,
-    },
-    {
-      name: 'Ceramic Tea Cup Set',
-      starts: 20,
-      ends: 68,
-      price: 950,
-      total: 15,
-      remaining: 15,
-    },
-    {
-      name: 'Soy Wax Candle Trio',
-      starts: 72,
-      ends: 120,
-      price: 700,
-      total: 25,
-      remaining: 25,
-    },
-    {
-      name: 'Linen Overshirt',
-      starts: -50,
-      ends: -46,
-      price: 1490,
-      total: 10,
-      remaining: 0,
-    },
-  ];
-
   const createdDrops = await Drop.insertMany(
     drops.map((drop) => ({
       product: productId(drop.name),
@@ -211,13 +210,14 @@ async function seed() {
     })),
   );
 
-  for (const [index, created] of createdDrops.entries()) {
+  for (const [index, drop] of createdDrops.entries()) {
     const { total, remaining, price } = drops[index];
-    const sold = total - remaining;
-    if (sold > 0) await seedSales(created._id, price, sold);
+    if (total > remaining) await seedSales(drop._id, price, total - remaining);
   }
 
-  console.log(`Seeded ${created.length} products and ${drops.length} drops`);
+  console.log(
+    `Seeded ${created.length} products and ${createdDrops.length} drops`,
+  );
 }
 
 seed()

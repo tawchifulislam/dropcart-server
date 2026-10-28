@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { AppError } from '../utils/AppError';
+import { User } from '../models/User';
 
 export interface AuthPayload {
   sub: string;
@@ -36,9 +37,16 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
   }
 }
 
-export function requireAdmin(req: Request, _res: Response, next: NextFunction) {
-  if (req.auth?.role !== 'admin')
-    return next(new AppError(403, 'Admin access required'));
+export async function requireAdmin(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) {
+  const user = await User.findById(currentUserId(req))
+    .select('role')
+    .lean<{ role: string }>();
+  if (user?.role !== 'admin')
+    throw new AppError(403, 'Admin access required', 'FORBIDDEN');
   next();
 }
 export function currentUserId(req: Request) {
