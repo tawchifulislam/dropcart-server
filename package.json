@@ -14,7 +14,8 @@
     "payment-test": "tsx src/scripts/payment-test.ts",
     "copilot-test": "tsx src/scripts/copilot-test.ts",
     "db:reset": "tsx src/scripts/reset-db.ts",
-    "set-role": "tsx src/scripts/set-role.ts"
+    "set-role": "tsx src/scripts/set-role.ts",
+    "gemini-check": "tsx src/scripts/gemini-check.ts"
   },
   "keywords": [],
   "author": "",

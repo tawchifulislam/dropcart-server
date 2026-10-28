@@ -60,7 +60,19 @@ async function generate(history: Content[]) {
     });
   } catch (error) {
     if (error instanceof AppError) throw error;
-    console.error('Gemini request failed', error);
+    const status = Number((error as { status?: unknown } | null)?.status ?? 0);
+    console.error(
+      'Gemini request failed',
+      status,
+      error instanceof Error ? error.message : error,
+    );
+    if (status === 429) {
+      throw new AppError(
+        503,
+        'The assistant is busy right now. Please try again in a minute.',
+        'AI_BUSY',
+      );
+    }
     throw new AppError(
       502,
       'The assistant is unavailable right now. Please try again.',
