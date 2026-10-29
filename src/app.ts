@@ -7,6 +7,7 @@ import { env } from './config/env';
 import { stripeWebhook } from './controllers/webhook.controller';
 import { errorHandler, notFound } from './middleware/error';
 import routes from './routes';
+import mongoose from 'mongoose';
 
 export function createApp() {
   const app = express();
@@ -24,7 +25,8 @@ export function createApp() {
   app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
   app.get('/health', (_req, res) => {
-    res.json({ ok: true });
+    const connected = mongoose.connection.readyState === 1;
+    res.status(connected ? 200 : 503).json({ ok: connected });
   });
 
   app.use(routes);

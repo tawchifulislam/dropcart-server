@@ -29,8 +29,16 @@ const schema = z
       message:
         'STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are required when PAYMENT_PROVIDER=stripe',
     },
+  )
+  .refine(
+    (value) =>
+      value.NODE_ENV !== 'production' ||
+      value.CLIENT_ORIGIN.startsWith('https://'),
+    {
+      path: ['CLIENT_ORIGIN'],
+      message: 'CLIENT_ORIGIN must be an https URL in production',
+    },
   );
-
 const result = schema.safeParse(process.env);
 
 if (!result.success) {
