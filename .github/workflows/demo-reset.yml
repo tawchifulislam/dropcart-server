@@ -1,0 +1,19 @@
+name: Reset demo data
+
+on:
+  schedule:
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the demo reset endpoint
+        env:
+          API_URL: ${{ secrets.DEMO_API_URL }}
+          TOKEN: ${{ secrets.DEMO_RESET_TOKEN }}
+        run: |
+          curl --fail --silent --show-error --max-time 120 \
+            --retry 3 --retry-delay 20 --retry-all-errors \
+            -X POST -H "x-demo-token: $TOKEN" "$API_URL/demo/reset"
