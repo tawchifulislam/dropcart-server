@@ -19,6 +19,14 @@ const schema = z
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
     GEMINI_API_KEY: z.string().optional(),
     GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
+    DEMO_MODE: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    DEMO_RESET_TOKEN: z
+      .string()
+      .min(24, 'DEMO_RESET_TOKEN must be at least 24 characters')
+      .optional(),
   })
   .refine(
     (value) =>
@@ -38,7 +46,11 @@ const schema = z
       path: ['CLIENT_ORIGIN'],
       message: 'CLIENT_ORIGIN must be an https URL in production',
     },
-  );
+  )
+  .refine((value) => !value.DEMO_MODE || Boolean(value.DEMO_RESET_TOKEN), {
+    path: ['DEMO_RESET_TOKEN'],
+    message: 'DEMO_RESET_TOKEN is required when DEMO_MODE=true',
+  });
 const result = schema.safeParse(process.env);
 
 if (!result.success) {
