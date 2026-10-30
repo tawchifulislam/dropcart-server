@@ -14,6 +14,7 @@ import {
   withProducts,
 } from './drop.service';
 import { productScope, scopedProductIds } from './scope';
+import { env } from '../config/env';
 
 const CHART_DROPS = 8;
 const RECENT_ORDERS = 10;
@@ -104,6 +105,7 @@ export async function getOverview(actor: Actor) {
         (drop) => drop.startsAt <= now && drop.endsAt > now,
       ).length,
     },
+    demo: env.DEMO_MODE,
     drops: recent
       .map((drop) => {
         const paid = totals.get(drop._id.toString());

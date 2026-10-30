@@ -13,6 +13,7 @@ import {
   updateProduct,
 } from '../controllers/admin.controller';
 import { authenticate, requireRole } from '../middleware/auth';
+import { adminReset } from '../controllers/demo.controller';
 
 const router = Router();
 const manage = requireRole('admin', 'superadmin');
@@ -32,5 +33,6 @@ router.put('/products/:id', manage, updateProduct);
 
 router.get('/users', superadminOnly, listUsers);
 router.patch('/users/:id/role', superadminOnly, changeUserRole);
+router.post('/demo/reset', superadminOnly, adminReset);
 
 export default router;

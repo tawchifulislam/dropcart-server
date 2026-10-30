@@ -8,6 +8,7 @@ import productRoutes from './product.routes';
 import reservationRoutes from './reservation.routes';
 import cartRoutes from './cart.routes';
 import copilotRoutes from './copilot.routes';
+import demoRoutes from './demo.routes';
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use('/orders', orderRoutes);
 router.use('/admin', adminRoutes);
 router.use('/cart', cartRoutes);
 router.use('/copilot', copilotRoutes);
+router.use('/demo', demoRoutes);
 
 export default router;
