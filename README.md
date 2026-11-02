@@ -4,6 +4,8 @@ Express and MongoDB backend for **DropCart**, a limited-drop store where product
 
 The hard problem it solves: when many shoppers press Reserve in the same second, exactly as many succeed as there are units in stock, and nobody can ever buy a unit that is not there.
 
+![CI](https://github.com/tawchifulislam/dropcart-server/actions/workflows/ci.yml/badge.svg)
+
 - Web app: [dropcart-client](https://github.com/tawchifulislam/dropcart-client)
 - Live demo: <https://dropcart-client.vercel.app>
 - API: <https://dropcart-server-5grr.onrender.com> (health check at `/health`)
@@ -288,6 +290,8 @@ On Render's free plan the service sleeps after 15 minutes without traffic and ta
 For a public demo, set `DEMO_MODE=true` and a `DEMO_RESET_TOKEN`. The sample drops are time based, so they eventually end. A scheduled GitHub Actions workflow (`.github/workflows/demo-reset.yml`) calls `POST /demo/reset` nightly, and superadmins get a "Reset demo data" button in the admin dashboard.
 
 A reset clears orders, reservations, carts and chats, and recreates the sample products and drops. Accounts, and products created by admins, are kept. The endpoint is limited to one call per minute and returns `404` when demo mode is off.
+
+POST /auth/guest creates a temporary guest account in demo mode. Guest accounts older than a day are deleted by the nightly reset.
 
 ## Security notes
 
