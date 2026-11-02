@@ -15,6 +15,7 @@ import {
 } from './drop.service';
 import { productScope, scopedProductIds } from './scope';
 import { env } from '../config/env';
+import { GUEST_EMAIL_PATTERN } from '../utils/guest';
 
 const CHART_DROPS = 8;
 const RECENT_ORDERS = 10;
@@ -213,9 +214,11 @@ export async function listManagedProducts(actor: Actor) {
 
 export async function listUsers(search?: string) {
   const pattern = search ? new RegExp(escapeRegExp(search), 'i') : null;
-  const users = await User.find(
-    pattern ? { $or: [{ name: pattern }, { email: pattern }] } : {},
-  )
+  const filter = {
+    email: { $not: GUEST_EMAIL_PATTERN },
+    ...(pattern ? { $or: [{ name: pattern }, { email: pattern }] } : {}),
+  };
+  const users = await User.find(filter)
     .sort({ _id: -1 })
     .limit(50)
     .select('name email role')

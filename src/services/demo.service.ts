@@ -6,6 +6,8 @@ import { Order } from '../models/Order';
 import { Product } from '../models/Product';
 import { Reservation } from '../models/Reservation';
 import { slugify } from '../utils/text';
+import { GUEST_EMAIL_PATTERN } from '../utils/guest';
+import { User } from '../models/User';
 
 const HOUR = 60 * 60 * 1000;
 const fromNow = (hours: number) => new Date(Date.now() + hours * HOUR);
@@ -184,6 +186,14 @@ export async function resetDemoData() {
     ChatSession.deleteMany({}),
     Drop.deleteMany({ product: { $in: platformIds } }),
     Product.deleteMany({ _id: { $in: platformIds } }),
+    User.deleteMany({
+      email: GUEST_EMAIL_PATTERN,
+      _id: {
+        $lt: Types.ObjectId.createFromTime(
+          Math.floor((Date.now() - 24 * HOUR) / 1000),
+        ),
+      },
+    }),
   ]);
 
   const created = await Product.insertMany(

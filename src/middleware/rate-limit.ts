@@ -26,3 +26,18 @@ export const copilotLimits = [
     "You have reached today's Copilot limit. Please come back tomorrow.",
   ),
 ];
+export const guestLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 40,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: () => 'guest-signups',
+  handler: (_req, _res, next) =>
+    next(
+      new AppError(
+        429,
+        'Too many guest sessions were started. Please try again later or create an account.',
+        'RATE_LIMITED',
+      ),
+    ),
+});

@@ -6,6 +6,8 @@ import { env } from '../config/env';
 import { AUTH_COOKIE } from '../middleware/auth';
 import { User } from '../models/User';
 import { AppError } from '../utils/AppError';
+import { randomUUID } from 'node:crypto';
+import { GUEST_DOMAIN } from '../utils/guest';
 
 const email = z
   .string()
@@ -98,4 +100,16 @@ export async function me(req: Request, res: Response) {
   const user = await User.findById(req.auth?.sub);
   if (!user) throw new AppError(401, 'Account no longer exists');
   res.json({ user: publicUser(user) });
+}
+export async function guest(_req: Request, res: Response) {
+  if (!env.DEMO_MODE) throw new AppError(404, 'Route not found', 'NOT_FOUND');
+
+  const suffix = Math.floor(1000 + Math.random() * 9000);
+  const user = await User.create({
+    name: `Guest ${suffix}`,
+    email: `guest-${randomUUID()}@${GUEST_DOMAIN}`,
+    passwordHash: await bcrypt.hash(randomUUID(), 4),
+  });
+  startSession(res, user);
+  res.status(201).json({ user: publicUser(user) });
 }
