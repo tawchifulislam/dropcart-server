@@ -107,7 +107,7 @@ export async function guest(_req: Request, res: Response) {
   const suffix = Math.floor(1000 + Math.random() * 9000);
   const user = await User.create({
     name: `Guest ${suffix}`,
-    email: `guest-${randomUUID()}@${GUEST_DOMAIN}`,
+    email: `guest-${suffix}@${GUEST_DOMAIN}`,
     passwordHash: await bcrypt.hash(randomUUID(), 4),
   });
   startSession(res, user);
