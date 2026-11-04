@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Drop } from '../src/models/Drop';
 import { Reservation } from '../src/models/Reservation';
 import {
@@ -209,5 +209,35 @@ describe('reservation rules', () => {
 
     await expireNow(reservation._id);
     expect(await findActiveReservation(drop.id, userId)).toBeNull();
+  });
+  it('short-circuits repeated requests for a drop that just sold out', async () => {
+    const drop = await newDrop({ stock: 1 });
+    await reserve(drop.id);
+    await expect(reserve(drop.id)).rejects.toMatchObject({
+      code: 'SOLD_OUT',
+    });
+
+    const takeStock = vi.spyOn(Drop, 'findOneAndUpdate');
+    await expect(reserve(drop.id)).rejects.toMatchObject({
+      code: 'SOLD_OUT',
+      message: 'Sold out',
+    });
+
+    expect(takeStock).not.toHaveBeenCalled();
+    takeStock.mockRestore();
+  });
+
+  it('forgets the sold-out memory as soon as stock comes back', async () => {
+    const drop = await newDrop({ stock: 1 });
+    const holder = newId();
+    const first = await reserve(drop.id, holder);
+    await expect(reserve(drop.id)).rejects.toMatchObject({
+      code: 'SOLD_OUT',
+    });
+
+    await releaseReservation(first.reservation._id.toString(), holder);
+
+    await expect(reserve(drop.id)).resolves.toBeDefined();
+    expect(await stockOf(drop.id)).toBe(0);
   });
 });

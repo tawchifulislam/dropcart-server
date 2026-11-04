@@ -12,6 +12,26 @@ export const MAX_QUANTITY = 2;
 const HOLD_MS = env.RESERVATION_TTL_SECONDS * 1000;
 const SWEEP_INTERVAL_MS = 10_000;
 
+const SOLD_OUT_TTL_MS = 1_000;
+const soldOutUntil = new Map<string, number>();
+
+function rememberSoldOut(dropId: string) {
+  const now = Date.now();
+  if (soldOutUntil.size > 500) {
+    for (const [id, until] of soldOutUntil) {
+      if (until <= now) soldOutUntil.delete(id);
+    }
+  }
+  soldOutUntil.set(dropId, now + SOLD_OUT_TTL_MS);
+}
+
+const isRememberedSoldOut = (dropId: string) =>
+  (soldOutUntil.get(dropId) ?? 0) > Date.now();
+
+function forgetSoldOut(dropId: string) {
+  soldOutUntil.delete(dropId);
+}
+
 interface ReserveInput {
   dropId: string;
   userId: string;
@@ -47,7 +67,7 @@ function takeStock(dropId: string, quantity: number) {
   );
 }
 
-async function explainFailure(dropId: string, quantity: number) {
+async function explainFailure(dropId: string) {
   const now = new Date();
   const drop = await Drop.findById(dropId).lean<DropRecord>();
   if (!drop) return new AppError(404, 'Drop not found', 'NOT_FOUND');
@@ -55,9 +75,11 @@ async function explainFailure(dropId: string, quantity: number) {
     return new AppError(409, 'This drop has not started yet', 'NOT_STARTED');
   if (now >= drop.endsAt)
     return new AppError(409, 'This drop has ended', 'ENDED');
-  const message =
-    drop.stockRemaining === 0 ? 'Sold out' : `Only ${drop.stockRemaining} left`;
-  return new AppError(409, quantity > 0 ? message : 'Sold out', 'SOLD_OUT');
+  if (drop.stockRemaining === 0) {
+    rememberSoldOut(dropId);
+    return new AppError(409, 'Sold out', 'SOLD_OUT');
+  }
+  return new AppError(409, `Only ${drop.stockRemaining} left`, 'SOLD_OUT');
 }
 
 export async function releaseExpiredReservations() {
@@ -82,6 +104,7 @@ export async function releaseExpiredReservations() {
       { _id: reservation.drop },
       { $inc: { stockRemaining: reservation.quantity } },
     );
+    forgetSoldOut(reservation.drop.toString());
     void cancelPendingPayment(reservation._id);
     released += 1;
   }
@@ -114,11 +137,14 @@ export async function reserveUnits({ dropId, userId, quantity }: ReserveInput) {
     await releaseExpiredReservations();
   }
 
+  if (isRememberedSoldOut(dropId))
+    throw new AppError(409, 'Sold out', 'SOLD_OUT');
+
   let drop = await takeStock(dropId, quantity);
   if (!drop && (await releaseExpiredReservations()) > 0) {
     drop = await takeStock(dropId, quantity);
   }
-  if (!drop) throw await explainFailure(dropId, quantity);
+  if (!drop) throw await explainFailure(dropId);
 
   try {
     const reservation = await Reservation.create({
@@ -136,6 +162,7 @@ export async function reserveUnits({ dropId, userId, quantity }: ReserveInput) {
       { _id: dropId },
       { $inc: { stockRemaining: quantity } },
     );
+    forgetSoldOut(dropId);
     if (isDuplicateKeyError(error)) {
       throw new AppError(
         409,
@@ -173,6 +200,7 @@ export async function releaseReservation(
     { $inc: { stockRemaining: reservation.quantity } },
     { new: true },
   );
+  forgetSoldOut(reservation.drop.toString());
   if (!drop) throw new AppError(404, 'Drop not found', 'NOT_FOUND');
   return drop.toObject<DropRecord>();
 }
