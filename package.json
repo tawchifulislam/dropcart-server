@@ -4,18 +4,19 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "seed": "tsx src/scripts/seed.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
     "load-test": "tsx src/scripts/load-test.ts",
     "payment-test": "tsx src/scripts/payment-test.ts",
     "copilot-test": "tsx src/scripts/copilot-test.ts",
     "db:reset": "tsx src/scripts/reset-db.ts",
     "set-role": "tsx src/scripts/set-role.ts",
-    "gemini-check": "tsx src/scripts/gemini-check.ts"
+    "gemini-check": "tsx src/scripts/gemini-check.ts",
+    "test:watch": "vitest"
   },
   "keywords": [],
   "author": "",
@@ -43,9 +44,13 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
     "@types/node": "^26.6.5",
+    "@types/supertest": "^7.2.1",
+    "mongodb-memory-server": "^11.3.0",
     "prettier": "^3.9.10",
+    "supertest": "^7.3.1",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   },
   "engines": {
     "node": ">=20"

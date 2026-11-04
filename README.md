@@ -28,6 +28,10 @@ Most portfolio stores stop at "add to cart". DropCart is built around a harder p
 
 ## Verified behavior
 
+### Automated tests
+
+`npm test` runs about 45 tests against an in-memory MongoDB, and the same suite runs in CI on every push. They cover 200 buyers racing for 10 units (in the service and through the HTTP API), reservation rules and expiry, payment fulfillment including five simultaneous webhooks and late payments, roles and ownership scoping, the copilot tools, and the demo reset.
+
 ### Concurrency
 
 `npm run load-test` creates a temporary drop, fires every reservation request at the same instant using distinct signed-in users, then checks the database. Results from two runs:
