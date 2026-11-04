@@ -69,6 +69,15 @@ export async function releaseExpiredReservations() {
       { new: true },
     );
     if (!reservation) return released;
+
+    if (await Order.exists({ reservation: reservation._id, status: 'paid' })) {
+      await Reservation.updateOne(
+        { _id: reservation._id },
+        { status: 'completed' },
+      );
+      continue;
+    }
+
     await Drop.updateOne(
       { _id: reservation.drop },
       { $inc: { stockRemaining: reservation.quantity } },

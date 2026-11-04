@@ -26,7 +26,9 @@ export function createApp() {
     res.set('Cache-Control', 'no-store');
     next();
   });
-  app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+  if (env.NODE_ENV !== 'test') {
+    app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+  }
 
   app.get('/health', (_req, res) => {
     const connected = mongoose.connection.readyState === 1;

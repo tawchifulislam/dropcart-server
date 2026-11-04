@@ -124,20 +124,17 @@ export async function fulfillOrder(
     ...(intentId ? { paymentIntentId: intentId } : {}),
   };
 
-  const held = await Reservation.findOneAndUpdate(
-    { _id: order.reservation, status: 'active' },
-    { status: 'completed' },
-  );
-  if (held) {
-    await Order.updateOne({ _id: order._id }, paid);
-    return 'paid';
-  }
-
   const claimed = await Order.findOneAndUpdate(
     { _id: order._id, status: { $in: ['pending', 'cancelled'] } },
     paid,
   );
   if (!claimed) return 'duplicate';
+
+  const held = await Reservation.findOneAndUpdate(
+    { _id: order.reservation, status: 'active' },
+    { status: 'completed' },
+  );
+  if (held) return 'paid';
 
   const reclaimed = await Drop.findOneAndUpdate(
     { _id: order.drop, stockRemaining: { $gte: order.quantity } },
