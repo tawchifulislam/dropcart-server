@@ -11,9 +11,10 @@ export const MAX_QUANTITY = 2;
 
 const HOLD_MS = env.RESERVATION_TTL_SECONDS * 1000;
 const SWEEP_INTERVAL_MS = 10_000;
-
 const SOLD_OUT_TTL_MS = 1_000;
+const SWEEP_THROTTLE_MS = 2_000;
 const soldOutUntil = new Map<string, number>();
+let lastSweepAt = 0;
 
 function rememberSoldOut(dropId: string) {
   const now = Date.now();
@@ -30,6 +31,18 @@ const isRememberedSoldOut = (dropId: string) =>
 
 function forgetSoldOut(dropId: string) {
   soldOutUntil.delete(dropId);
+}
+
+async function sweepIfDue() {
+  const now = Date.now();
+  if (now - lastSweepAt < SWEEP_THROTTLE_MS) return 0;
+  lastSweepAt = now;
+  return releaseExpiredReservations();
+}
+
+export function resetReservationState() {
+  soldOutUntil.clear();
+  lastSweepAt = 0;
 }
 
 interface ReserveInput {
@@ -120,30 +133,20 @@ export function startReservationSweeper() {
   return timer;
 }
 
-export async function reserveUnits({ dropId, userId, quantity }: ReserveInput) {
-  const existing = await Reservation.findOne({
-    drop: dropId,
-    user: userId,
-    status: 'active',
-  });
-  if (existing) {
-    if (existing.expiresAt > new Date()) {
-      throw new AppError(
-        409,
-        'You already hold a reservation for this drop',
-        'ALREADY_RESERVED',
-      );
-    }
-    await releaseExpiredReservations();
-  }
+export function reserveUnits(input: ReserveInput) {
+  return attemptReservation(input, true);
+}
 
+async function attemptReservation(
+  { dropId, userId, quantity }: ReserveInput,
+  canRetry: boolean,
+): Promise<{ reservation: ReservationRecord; drop: DropRecord }> {
   if (isRememberedSoldOut(dropId))
     throw new AppError(409, 'Sold out', 'SOLD_OUT');
 
   let drop = await takeStock(dropId, quantity);
-  if (!drop && (await releaseExpiredReservations()) > 0) {
+  if (!drop && (await sweepIfDue()) > 0)
     drop = await takeStock(dropId, quantity);
-  }
   if (!drop) throw await explainFailure(dropId);
 
   try {
@@ -163,14 +166,15 @@ export async function reserveUnits({ dropId, userId, quantity }: ReserveInput) {
       { $inc: { stockRemaining: quantity } },
     );
     forgetSoldOut(dropId);
-    if (isDuplicateKeyError(error)) {
-      throw new AppError(
-        409,
-        'You already hold a reservation for this drop',
-        'ALREADY_RESERVED',
-      );
+    if (!isDuplicateKeyError(error)) throw error;
+    if (canRetry && (await releaseExpiredReservations()) > 0) {
+      return attemptReservation({ dropId, userId, quantity }, false);
     }
-    throw error;
+    throw new AppError(
+      409,
+      'You already hold a reservation for this drop',
+      'ALREADY_RESERVED',
+    );
   }
 }
 
@@ -192,8 +196,9 @@ export async function releaseReservation(
     { status: 'released' },
     { new: true },
   );
-  if (!reservation)
+  if (!reservation) {
     throw new AppError(404, 'Active reservation not found', 'NOT_FOUND');
+  }
   void cancelPendingPayment(reservation._id);
   const drop = await Drop.findByIdAndUpdate(
     reservation.drop,

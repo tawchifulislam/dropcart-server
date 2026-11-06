@@ -240,4 +240,34 @@ describe('reservation rules', () => {
     await expect(reserve(drop.id)).resolves.toBeDefined();
     expect(await stockOf(drop.id)).toBe(0);
   });
+  it('answers requests for a drop that just sold out without touching the stock', async () => {
+    const drop = await newDrop({ stock: 1 });
+    await reserve(drop.id);
+    await expect(reserve(drop.id)).rejects.toMatchObject({
+      code: 'SOLD_OUT',
+    });
+
+    const takeStock = vi.spyOn(Drop, 'findOneAndUpdate');
+    await expect(reserve(drop.id)).rejects.toMatchObject({
+      code: 'SOLD_OUT',
+      message: 'Sold out',
+    });
+
+    expect(takeStock).not.toHaveBeenCalled();
+    takeStock.mockRestore();
+  });
+
+  it('forgets the sold-out memory as soon as stock comes back', async () => {
+    const drop = await newDrop({ stock: 1 });
+    const holder = newId();
+    const first = await reserve(drop.id, holder);
+    await expect(reserve(drop.id)).rejects.toMatchObject({
+      code: 'SOLD_OUT',
+    });
+
+    await releaseReservation(first.reservation._id.toString(), holder);
+
+    await expect(reserve(drop.id)).resolves.toBeDefined();
+    expect(await stockOf(drop.id)).toBe(0);
+  });
 });
