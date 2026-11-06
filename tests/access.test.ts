@@ -121,6 +121,27 @@ describe('authentication', () => {
     const response = await api().get('/auth/me');
     expect(response.status).toBe(401);
   });
+  it('answers the session check without an error when nobody is signed in', async () => {
+    const response = await api().get('/auth/session');
+
+    expect(response.status).toBe(200);
+    expect(response.body.user).toBeNull();
+  });
+
+  it('returns the user for a valid session and null for a stale one', async () => {
+    const shopper = await createUser();
+    const valid = await api()
+      .get('/auth/session')
+      .set('Cookie', shopper.cookie);
+    expect(valid.body.user.id).toBe(shopper.id);
+
+    await User.deleteOne({ _id: shopper.id });
+    const stale = await api()
+      .get('/auth/session')
+      .set('Cookie', shopper.cookie);
+    expect(stale.status).toBe(200);
+    expect(stale.body.user).toBeNull();
+  });
 });
 
 describe('roles', () => {

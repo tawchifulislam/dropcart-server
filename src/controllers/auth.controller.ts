@@ -113,3 +113,18 @@ export async function guest(_req: Request, res: Response) {
   startSession(res, user);
   res.status(201).json({ user: publicUser(user) });
 }
+export async function session(req: Request, res: Response) {
+  const token = req.cookies?.[AUTH_COOKIE];
+  if (!token) {
+    res.json({ user: null });
+    return;
+  }
+  try {
+    const decoded = jwt.verify(token, env.JWT_SECRET);
+    const userId = typeof decoded === 'string' ? null : decoded.sub;
+    const user = userId ? await User.findById(userId) : null;
+    res.json({ user: user ? publicUser(user) : null });
+  } catch {
+    res.json({ user: null });
+  }
+}
