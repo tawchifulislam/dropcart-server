@@ -21,16 +21,20 @@ async function fire(dropId: string) {
     },
   );
   const started = performance.now();
-  const response = await fetch(`${BASE_URL}/drops/${dropId}/reserve`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Cookie: `${AUTH_COOKIE}=${token}`,
-    },
-    body: '{}',
-  });
-  await response.text();
-  return { status: response.status, ms: performance.now() - started };
+  try {
+    const response = await fetch(`${BASE_URL}/drops/${dropId}/reserve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: `${AUTH_COOKIE}=${token}`,
+      },
+      body: '{}',
+    });
+    await response.text();
+    return { status: response.status, ms: performance.now() - started };
+  } catch {
+    return { status: 0, ms: performance.now() - started };
+  }
 }
 
 const percentile = (sorted: number[], p: number) =>
