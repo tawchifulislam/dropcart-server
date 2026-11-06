@@ -10,6 +10,7 @@ import { Reservation } from '../models/Reservation';
 const BASE_URL = process.env.LOAD_TEST_URL ?? `http://localhost:${env.PORT}`;
 const STOCK = Number(process.env.LOAD_TEST_STOCK ?? 10);
 const BUYERS = Number(process.env.LOAD_TEST_BUYERS ?? 200);
+const LATE = Number(process.env.LOAD_TEST_LATE ?? BUYERS);
 
 async function fire(dropId: string) {
   const token = jwt.sign(
@@ -35,6 +36,11 @@ async function fire(dropId: string) {
 const percentile = (sorted: number[], p: number) =>
   sorted[Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1)];
 
+const describeTimes = (times: number[]) =>
+  `${Math.round(percentile(times, 50))} / ${Math.round(percentile(times, 95))} / ${Math.round(
+    times[times.length - 1],
+  )} ms`;
+
 async function run() {
   await connectDb();
   const stamp = Date.now();
@@ -56,41 +62,51 @@ async function run() {
 
   try {
     const burstStarted = performance.now();
-    const results = await Promise.all(
+    const burst = await Promise.all(
       Array.from({ length: BUYERS }, () => fire(drop.id)),
     );
-    const wall = performance.now() - burstStarted;
+    const burstWall = performance.now() - burstStarted;
 
-    const reserved = results.filter((result) => result.status === 201).length;
-    const soldOut = results.filter((result) => result.status === 409).length;
+    const reserved = burst.filter((result) => result.status === 201).length;
+    const soldOut = burst.filter((result) => result.status === 409).length;
     const other = BUYERS - reserved - soldOut;
-    const times = results.map((result) => result.ms).sort((a, b) => a - b);
+    const burstTimes = burst.map((result) => result.ms).sort((a, b) => a - b);
     const finalDrop = await Drop.findById(drop._id).lean();
     const holds = await Reservation.countDocuments({
       drop: drop._id,
       status: 'active',
     });
 
+    const lateStarted = performance.now();
+    const late = await Promise.all(
+      Array.from({ length: LATE }, () => fire(drop.id)),
+    );
+    const lateWall = performance.now() - lateStarted;
+    const lateSoldOut = late.filter((result) => result.status === 409).length;
+    const lateTimes = late.map((result) => result.ms).sort((a, b) => a - b);
+
     const passed =
       reserved === STOCK &&
       soldOut === BUYERS - STOCK &&
       other === 0 &&
       finalDrop?.stockRemaining === 0 &&
-      holds === STOCK;
+      holds === STOCK &&
+      lateSoldOut === LATE;
 
     console.log('Reservation load test');
-    console.log(`  stock ${STOCK}, simultaneous buyers ${BUYERS}`);
-    console.log(`  201 reserved:      ${reserved}`);
-    console.log(`  409 sold out:      ${soldOut}`);
-    console.log(`  unexpected:        ${other}`);
-    console.log(`  stock left in db:  ${finalDrop?.stockRemaining}`);
-    console.log(`  active holds:      ${holds}`);
     console.log(
-      `  p50 / p95 / max:   ${Math.round(percentile(times, 50))} / ${Math.round(
-        percentile(times, 95),
-      )} / ${Math.round(times[times.length - 1])} ms`,
+      `  stock ${STOCK}, simultaneous buyers ${BUYERS}, latecomers ${LATE}`,
     );
-    console.log(`  all finished in:   ${Math.round(wall)} ms`);
+    console.log(`  201 reserved:               ${reserved}`);
+    console.log(`  409 sold out:               ${soldOut}`);
+    console.log(`  unexpected:                 ${other}`);
+    console.log(`  stock left in db:           ${finalDrop?.stockRemaining}`);
+    console.log(`  active holds:               ${holds}`);
+    console.log(`  burst p50 / p95 / max:      ${describeTimes(burstTimes)}`);
+    console.log(`  burst finished in:          ${Math.round(burstWall)} ms`);
+    console.log(`  latecomers 409:             ${lateSoldOut} of ${LATE}`);
+    console.log(`  latecomers p50 / p95 / max: ${describeTimes(lateTimes)}`);
+    console.log(`  latecomers finished in:     ${Math.round(lateWall)} ms`);
     console.log(passed ? 'RESULT: PASS' : 'RESULT: FAIL');
     process.exitCode = passed ? 0 : 1;
   } finally {
