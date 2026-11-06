@@ -24,13 +24,25 @@ Most portfolio stores stop at "add to cart". DropCart is built around a harder p
 | Grounded LLM tool use | [`src/copilot/`](src/copilot) |
 | Authentication, roles and ownership scoping | [`src/middleware/auth.ts`](src/middleware/auth.ts), [`src/services/scope.ts`](src/services/scope.ts) |
 | Input and environment validation | [`src/schemas/`](src/schemas), [`src/config/env.ts`](src/config/env.ts) |
-| Scripted tests | [`src/scripts/load-test.ts`](src/scripts/load-test.ts), [`payment-test.ts`](src/scripts/payment-test.ts), [`copilot-test.ts`](src/scripts/copilot-test.ts) |
+| Automated tests (in-memory MongoDB, run in CI) | [`tests/`](tests) |
+| Scripts that run against a real database | [`src/scripts/load-test.ts`](src/scripts/load-test.ts), [`payment-test.ts`](src/scripts/payment-test.ts), [`copilot-test.ts`](src/scripts/copilot-test.ts) |
 
 ## Verified behavior
 
 ### Automated tests
 
-`npm test` runs about 45 tests against an in-memory MongoDB, and the same suite runs in CI on every push. They cover 200 buyers racing for 10 units (in the service and through the HTTP API), reservation rules and expiry, payment fulfillment including five simultaneous webhooks and late payments, roles and ownership scoping, the copilot tools, and the demo reset.
+`npm test` runs the Vitest suite against an in-memory MongoDB, and the same suite runs in CI on every push, together with the type check and the production build.
+
+The suite covers:
+
+- 200 buyers racing for 10 units, through the service and through the HTTP API
+- reservation rules and expiry, including concurrent expiry sweeps
+- payment fulfillment, including five simultaneous webhooks, late payments and refunds
+- sessions, roles and ownership scoping
+- the copilot tools, without calling the model
+- the demo reset
+
+An in-memory database does not behave exactly like a real cluster under load, so `npm run load-test` remains the end-to-end check against a real database.
 
 ### Concurrency
 
@@ -41,7 +53,20 @@ Most portfolio stores stop at "add to cart". DropCart is built around a harder p
 | 200 | 10 | 10 | 190 | 0 | 0 | 10 | 7.8 s |
 | 500 | 25 | 25 | 475 | 0 | 0 | 25 | 17.0 s |
 
-Both runs passed: exactly as many reservations as units, no overselling, stock never negative. The runs used a development machine for the API process and a hosted MongoDB Atlas database. The slow tail shows the cost of queueing hundreds of requests on one Node process and a shared database. Latency has not been profiled or optimized yet (see next steps), because correctness was the goal of this test.
+Both runs passed: exactly as many reservations as units, no overselling, stock never negative.
+
+### Latency under a burst
+
+The load test also measures latency, and sends a second wave of late arrivals right after the burst to see how the API behaves once a drop is already sold out.
+
+500 simultaneous buyers for 25 units, followed by 500 late arrivals. Median of three runs after two warm-up runs, from a development machine against a hosted MongoDB Atlas free-tier cluster.
+
+| Phase | p50 | p95 | Finished in |
+| --- | ---: | ---: | ---: |
+| Burst: 500 requests, 25 succeed | 11.2 s | 13.2 s | 13.3 s |
+| Late arrivals: 500 requests, all `409` | 8.9 s | 10.9 s | 10.9 s |
+
+Every run passed. These numbers are dominated by the database rather than by locking. A rejected request makes four database round trips (existing-hold check, the atomic attempt, an expiry sweep, a read to explain the failure), so a wave of 500 requests is roughly 2,000 operations. Atlas documents a limit of 100 operations per second for free clusters, and about 2,000 operations in 11 to 13 seconds is the same order of magnitude. Cutting round trips per rejected request is the next step (see below).
 
 ### Payments and AI
 
@@ -108,7 +133,8 @@ sequenceDiagram
 ```
 
 - The order becomes `paid` in the webhook handler. The success page also calls a sync endpoint that asks the provider, so a delayed webhook does not leave the shopper waiting.
-- Fulfillment is idempotent. Duplicate webhooks, or a webhook racing the sync call, fulfill exactly once.
+- Fulfillment is idempotent. The order is claimed first with an atomic update, and only the caller that wins the claim continues, so duplicate webhooks, or a webhook racing the sync call, fulfill exactly once.
+- If the process dies after the order is marked paid but before the reservation is completed, the expiry sweeper sees the paid order and completes the reservation instead of returning the unit to stock.
 - Stripe sessions cannot live less than 30 minutes, while holds last 5. When a reservation ends, the API expires the session explicitly.
 - **Late payment.** If a payment arrives after the hold ended, the API tries to take the stock again. If a unit is still available the order is honored, otherwise the payment is refunded automatically.
 - `PAYMENT_PROVIDER=mock` serves a simulated card page and runs the same fulfillment code, which keeps the demo and the tests independent of any external account.
@@ -138,7 +164,7 @@ Roles are read from the database on every admin request, not from the token, so 
 
 ## Tech stack
 
-Node.js 20+, TypeScript, Express 5, MongoDB with Mongoose, Zod, JWT in `httpOnly` cookies, bcrypt, Stripe Checkout, Google Gemini (`@google/genai`), express-rate-limit. Hosted on Render and MongoDB Atlas, with GitHub Actions for CI and the nightly demo reset.
+Node.js 20+, TypeScript, Express 5, MongoDB with Mongoose, Zod, JWT in `httpOnly` cookies, bcrypt, Stripe Checkout, Google Gemini (`@google/genai`), express-rate-limit. Tests use Vitest, Supertest and an in-memory MongoDB. Hosted on Render and MongoDB Atlas, with GitHub Actions for CI and the nightly demo reset.
 
 ## Getting started
 
@@ -163,6 +189,14 @@ The API listens on `http://localhost:4000`. Register an account in the [web app]
 ```bash
 npm run set-role -- you@example.com superadmin
 ```
+
+To run the automated tests (no database or API keys needed):
+
+```bash
+npm test
+```
+
+The first run downloads a MongoDB binary for the in-memory database.
 
 <details>
 <summary><strong>Environment variables</strong></summary>
@@ -195,16 +229,17 @@ The environment is validated at startup. A missing or invalid value stops the se
 | --- | --- |
 | `npm run dev` | Start with file watching |
 | `npm run build`, `npm start` | Compile and run the production build |
-| `npm run typecheck` | Type check without emitting |
+| `npm run typecheck` | Type check the source and the tests without emitting |
+| `npm test`, `npm run test:watch` | Run the automated tests once, or in watch mode |
 | `npm run seed` | Reset sample data (products, drops, demo sales) |
 | `npm run set-role -- <email> <role>` | Change a user's role |
 | `npm run db:reset -- --yes` | Drop the configured database (never in production) |
-| `npm run load-test` | Concurrency test against a running server |
+| `npm run load-test` | Concurrency and latency test against a running server |
 | `npm run payment-test` | Fulfillment, idempotency and late payment checks |
 | `npm run copilot-test` | Grounding checks against the real model |
 | `npm run gemini-check` | Diagnose Gemini access and tool declarations |
 
-Run tests against a separate database with `MONGODB_DB=dropcart_test`. The load test needs the server and the script to use the same database:
+Run the scripts against a separate database with `MONGODB_DB=dropcart_test`. The load test needs the server and the script to use the same database. It reads `LOAD_TEST_BUYERS`, `LOAD_TEST_STOCK`, `LOAD_TEST_LATE` (late arrivals, defaults to the number of buyers) and `LOAD_TEST_URL`:
 
 ```bash
 MONGODB_DB=dropcart_test npm run dev
@@ -225,7 +260,8 @@ Auth: **Public**, **User** (any signed-in account), **Admin** (`admin` or `super
 | --- | --- | --- | --- |
 | POST | `/auth/register`, `/auth/login`, `/auth/logout` | Public | Session cookie auth |
 | POST | `/auth/guest` | Public | Temporary guest account, demo mode only |
-| GET | `/auth/me` | User | Current account |
+| GET | `/auth/session` | Public | Current account, or `{ "user": null }`. Never an error |
+| GET | `/auth/me` | User | Current account, `401` when signed out |
 | GET | `/products` | Public | `search`, `category`, `page`, `limit` |
 | GET | `/products/categories` | Public | Category names |
 | GET | `/products/:idOrSlug` | Public | Product with its current drop |
@@ -305,6 +341,7 @@ src/
   scripts/       seed, role management, load and payment tests
   services/      reservations, payments, catalog, admin, cart, copilot, demo
   utils/         small helpers
+tests/           Vitest suites, shared helpers and the in-memory database setup
 ```
 
 </details>
@@ -346,8 +383,8 @@ For a public demo, set `DEMO_MODE=true` and a `DEMO_RESET_TOKEN`.
 ## Trade-offs and next steps
 
 - **Atomic update instead of transactions.** Keeps contention low under a rush. The cost: a crash between taking stock and creating the reservation can leak one unit. That fails safe (under-selling, never overselling).
-- **Latency under a burst is unoptimized.** A rejected request makes several database round trips (existing-hold check, the atomic attempt, an expiry sweep, a read to explain the failure). Next step: profile, then cut round trips on the sold-out path and re-run the load test to compare.
-- **Automated tests run as scripts.** They need a database and are not part of CI yet. Next step: Vitest with an in-memory MongoDB so the concurrency and payment checks run on every push.
+- **Burst latency is bounded by database round trips.** Each rejected request makes four, and on the free database tier that dominates the numbers above. Next step: skip the existing-hold read and rely on the unique index, throttle the expiry sweep, and remember for one second that a drop is sold out, then re-run the load test to compare. The sold-out memory can only reject too eagerly, never oversell.
+- **The test database is not a real cluster.** The automated tests use an in-memory MongoDB, so the load test against a real database stays part of the verification.
 - Rate limit counters live in memory, so they reset on restart and are not shared between instances. A shared store such as Redis would fix that.
 - Product images are URLs or static paths. There is no upload pipeline yet.
 - Stripe does not onboard businesses registered in every country, so payments run in test mode here and the mock provider keeps the demo usable. The provider interface is where a local gateway would plug in.
