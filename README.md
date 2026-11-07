@@ -10,6 +10,34 @@
 
 > The demo runs on free hosting. If the first request is slow, the API was asleep and needs about a minute to wake up.
 
+## Contents
+
+- [DropCart API](#dropcart-api)
+  - [Contents](#contents)
+  - [Why this project](#why-this-project)
+  - [Reviewer's guide](#reviewers-guide)
+  - [Verified behavior](#verified-behavior)
+    - [Automated tests](#automated-tests)
+    - [Concurrency](#concurrency)
+    - [Latency under a burst](#latency-under-a-burst)
+    - [Payments and AI](#payments-and-ai)
+  - [How reservations work](#how-reservations-work)
+  - [Payments](#payments)
+  - [AI shopping copilot](#ai-shopping-copilot)
+  - [Roles and ownership](#roles-and-ownership)
+  - [Tech stack](#tech-stack)
+  - [Getting started](#getting-started)
+    - [Prerequisites](#prerequisites)
+    - [Installation](#installation)
+    - [Running](#running)
+    - [Testing](#testing)
+  - [Deployment](#deployment)
+  - [Demo mode](#demo-mode)
+  - [Security notes](#security-notes)
+  - [Trade-offs and next steps](#trade-offs-and-next-steps)
+  - [License](#license)
+  - [Author](#author)
+
 ## Why this project
 
 Most portfolio stores stop at "add to cart". DropCart is built around a harder problem: items are scarce and many people want them at the same moment, so correctness under concurrency is the product. Around that core it covers real payments, an AI assistant that cannot invent products, role-based access with ownership, and the operational basics of running a public demo.
@@ -36,7 +64,7 @@ Most portfolio stores stop at "add to cart". DropCart is built around a harder p
 The suite covers:
 
 - 200 buyers racing for 10 units, through the service and through the HTTP API
-- reservation rules and expiry, including concurrent expiry sweeps
+- reservation rules and expiry, including concurrent expiry sweeps and the sold-out memory
 - payment fulfillment, including five simultaneous webhooks, late payments and refunds
 - sessions, roles and ownership scoping
 - the copilot tools, without calling the model
@@ -46,27 +74,30 @@ An in-memory database does not behave exactly like a real cluster under load, so
 
 ### Concurrency
 
-`npm run load-test` creates a temporary drop, fires every reservation request at the same instant using distinct signed-in users, then checks the database. Results from two runs:
+`npm run load-test` creates a temporary drop, fires every reservation request at the same instant using distinct signed-in users, checks the database, then sends a second wave of late arrivals at the sold-out drop. In every completed run, exactly as many reservations succeeded as there were units, no unit was oversold, stock never went negative, and every late arrival was rejected:
 
-| Simultaneous buyers | Units in drop | Reserved (`201`) | Rejected (`409`) | Unexpected | Stock left | Active holds | Slowest request |
+| Simultaneous buyers | Units in drop | Reserved (`201`) | Rejected (`409`) | Unexpected | Stock left | Active holds | Late arrivals rejected |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 200 | 10 | 10 | 190 | 0 | 0 | 10 | 7.8 s |
-| 500 | 25 | 25 | 475 | 0 | 0 | 25 | 17.0 s |
-
-Both runs passed: exactly as many reservations as units, no overselling, stock never negative.
+| 200 | 10 | 10 | 190 | 0 | 0 | 10 | 200 of 200 |
+| 500 | 25 | 25 | 475 | 0 | 0 | 25 | 500 of 500 |
 
 ### Latency under a burst
 
-The load test also measures latency, and sends a second wave of late arrivals right after the burst to see how the API behaves once a drop is already sold out.
+Each row is the median of three runs after two warm-up runs, from a development machine against a hosted MongoDB Atlas free-tier cluster. The number of late arrivals equals the number of buyers in each run.
 
-500 simultaneous buyers for 25 units, followed by 500 late arrivals. Median of three runs after two warm-up runs, from a development machine against a hosted MongoDB Atlas free-tier cluster.
+| Version | Buyers | Units | Burst p50 | Burst p95 | Burst finished in | Late arrivals p50 | Late arrivals finished in |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Before | 500 | 25 | 11.2 s | 13.2 s | 13.3 s | 8.9 s | 10.9 s |
+| After | 200 | 10 | 2.0 s | 3.0 s | 3.1 s | 66 ms | 128 ms |
 
-| Phase | p50 | p95 | Finished in |
-| --- | ---: | ---: | ---: |
-| Burst: 500 requests, 25 succeed | 11.2 s | 13.2 s | 13.3 s |
-| Late arrivals: 500 requests, all `409` | 8.9 s | 10.9 s | 10.9 s |
+The two rows were measured at different sizes, so compare them per request rather than as totals. Dividing the finishing time by the number of requests, the burst went from about 27 ms to about 16 ms per request, and late arrivals from about 22 ms to under 1 ms per request.
 
-Every run passed. These numbers are dominated by the database rather than by locking. A rejected request makes four database round trips (existing-hold check, the atomic attempt, an expiry sweep, a read to explain the failure), so a wave of 500 requests is roughly 2,000 operations. Atlas documents a limit of 100 operations per second for free clusters, and about 2,000 operations in 11 to 13 seconds is the same order of magnitude. Cutting round trips per rejected request is the next step (see below).
+What changed between the rows:
+
+- A rejected request used to make four database round trips: an existing-hold read, the atomic attempt, an expiry sweep and a read to explain the failure. It now makes two in a burst: the atomic attempt and the explanation. The existing-hold read is gone because the unique index already guards it, and the expiry sweep on this path runs at most once every two seconds.
+- Once a drop is known to be sold out, requests for it within the next second are answered from memory without touching the database. That is why late arrivals dropped by more than an order of magnitude.
+
+These counts come from reading the request flow, not from database profiling. The free-tier database caps throughput (Atlas documents 100 operations per second for free clusters), and both versions ran at roughly 130 to 150 operations per second by that estimate, so the time per request follows the number of operations per request.
 
 ### Payments and AI
 
@@ -86,7 +117,7 @@ const drop = await Drop.findOneAndUpdate(
     stockRemaining: { $gte: quantity },
   },
   { $inc: { stockRemaining: -quantity } },
-  { new: true }
+  { returnDocument: "after" }
 );
 ```
 
@@ -109,9 +140,10 @@ sequenceDiagram
 
 Further guards:
 
-- A partial unique index allows one **active** reservation per user per drop.
-- If creating the reservation fails after stock was taken, the stock is returned in a compensating update.
-- Expiry flips a reservation from `active` to `expired` with an atomic update. Only the process that wins that flip returns the stock, so a unit is never released twice. A background sweeper handles expiry, and a drop that looks sold out also triggers a lazy check.
+- A partial unique index allows one **active** reservation per user per drop. If inserting the reservation hits that index, the unit just taken is returned to stock. An expired hold that has not been swept yet is released and the request is retried once, otherwise the answer is `ALREADY_RESERVED`.
+- If creating the reservation fails for any other reason, the stock is returned in a compensating update.
+- Expiry flips a reservation from `active` to `expired` with an atomic update. Only the process that wins that flip returns the stock, so a unit is never released twice. A background sweeper runs every 10 seconds, and a drop that looks sold out also triggers a lazy check.
+- After a drop is proven sold out, the process remembers it for one second and rejects further requests immediately. The memory is cleared the moment stock is returned. It can only reject too eagerly, never oversell.
 
 ## Payments
 
@@ -168,7 +200,11 @@ Node.js 20+, TypeScript, Express 5, MongoDB with Mongoose, Zod, JWT in `httpOnly
 
 ## Getting started
 
-Requirements: Node 20 or newer and a MongoDB database (Atlas free tier works).
+### Prerequisites
+
+Node.js 20 or newer and a MongoDB database (an Atlas free cluster works).
+
+### Installation
 
 ```bash
 git clone https://github.com/tawchifulislam/dropcart-server.git
@@ -177,7 +213,9 @@ npm install
 cp .env.example .env
 ```
 
-Fill in `.env` (variables are listed below), then:
+Fill in `.env` using the variables listed below.
+
+### Running
 
 ```bash
 npm run seed
@@ -190,13 +228,13 @@ The API listens on `http://localhost:4000`. Register an account in the [web app]
 npm run set-role -- you@example.com superadmin
 ```
 
-To run the automated tests (no database or API keys needed):
+### Testing
 
 ```bash
 npm test
 ```
 
-The first run downloads a MongoDB binary for the in-memory database.
+The tests need no database or API keys. The first run downloads a MongoDB binary for the in-memory database.
 
 <details>
 <summary><strong>Environment variables</strong></summary>
@@ -239,13 +277,15 @@ The environment is validated at startup. A missing or invalid value stops the se
 | `npm run copilot-test` | Grounding checks against the real model |
 | `npm run gemini-check` | Diagnose Gemini access and tool declarations |
 
-Run the scripts against a separate database with `MONGODB_DB=dropcart_test`. The load test needs the server and the script to use the same database. It reads `LOAD_TEST_BUYERS`, `LOAD_TEST_STOCK`, `LOAD_TEST_LATE` (late arrivals, defaults to the number of buyers) and `LOAD_TEST_URL`:
+The load test and the other scripts need the server and the script to use the same database, so start both with the same `MONGODB_DB`. The load test reads `LOAD_TEST_BUYERS` (default 200), `LOAD_TEST_STOCK` (default 10), `LOAD_TEST_LATE` (late arrivals, defaults to the number of buyers) and `LOAD_TEST_URL`:
 
 ```bash
 MONGODB_DB=dropcart_test npm run dev
 MONGODB_DB=dropcart_test npm run load-test
 LOAD_TEST_BUYERS=500 LOAD_TEST_STOCK=25 MONGODB_DB=dropcart_test npm run load-test
 ```
+
+The script refuses to start if the API cannot see the temporary drop it creates, which is what happens when the two use different databases.
 
 </details>
 
@@ -383,9 +423,19 @@ For a public demo, set `DEMO_MODE=true` and a `DEMO_RESET_TOKEN`.
 ## Trade-offs and next steps
 
 - **Atomic update instead of transactions.** Keeps contention low under a rush. The cost: a crash between taking stock and creating the reservation can leak one unit. That fails safe (under-selling, never overselling).
-- **Burst latency is bounded by database round trips.** Each rejected request makes four, and on the free database tier that dominates the numbers above. Next step: skip the existing-hold read and rely on the unique index, throttle the expiry sweep, and remember for one second that a drop is sold out, then re-run the load test to compare. The sold-out memory can only reject too eagerly, never oversell.
+- **Per-process memory.** The sold-out memory and the sweep throttle live in the API process. With several instances, one could keep answering "sold out" for up to a second after another returned stock. That can only reject too eagerly, never oversell.
+- **A rejected request in a burst still costs two database round trips**: the atomic attempt and the read that explains the failure. A single conditional update that also reports why it failed would remove the second one, at the price of a write on every attempt and more contention on the drop document. Not done yet.
+- **The free database tier caps throughput**, so a real traffic spike on the demo would be slow regardless of the API code.
 - **The test database is not a real cluster.** The automated tests use an in-memory MongoDB, so the load test against a real database stays part of the verification.
 - Rate limit counters live in memory, so they reset on restart and are not shared between instances. A shared store such as Redis would fix that.
 - Product images are URLs or static paths. There is no upload pipeline yet.
 - Stripe does not onboard businesses registered in every country, so payments run in test mode here and the mock provider keeps the demo usable. The provider interface is where a local gateway would plug in.
 - Search is keyword based, not semantic.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+## Author
+
+Built by [tawchifulislam](https://github.com/tawchifulislam). Questions about the design are welcome, especially about how reservations stay correct under concurrent load.
