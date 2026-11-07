@@ -12,7 +12,13 @@ const STOCK = Number(process.env.LOAD_TEST_STOCK ?? 10);
 const BUYERS = Number(process.env.LOAD_TEST_BUYERS ?? 200);
 const LATE = Number(process.env.LOAD_TEST_LATE ?? BUYERS);
 
-async function fire(dropId: string) {
+interface Shot {
+  status: number;
+  ms: number;
+  error?: string;
+}
+
+async function fire(dropId: string): Promise<Shot> {
   const token = jwt.sign(
     { sub: new Types.ObjectId().toString(), role: 'shopper' },
     env.JWT_SECRET,
@@ -32,8 +38,13 @@ async function fire(dropId: string) {
     });
     await response.text();
     return { status: response.status, ms: performance.now() - started };
-  } catch {
-    return { status: 0, ms: performance.now() - started };
+  } catch (error) {
+    const cause = (error as { cause?: { code?: string } }).cause;
+    return {
+      status: 0,
+      ms: performance.now() - started,
+      error: cause?.code ?? String(error),
+    };
   }
 }
 
@@ -45,7 +56,28 @@ const describeTimes = (times: number[]) =>
     times[times.length - 1],
   )} ms`;
 
+function tally(shots: Shot[]) {
+  const counts = new Map<number, number>();
+  for (const shot of shots)
+    counts.set(shot.status, (counts.get(shot.status) ?? 0) + 1);
+  return [...counts]
+    .map(
+      ([status, count]) => `${status === 0 ? 'no response' : status}: ${count}`,
+    )
+    .join(', ');
+}
+
+async function ensureServerIsReachable() {
+  const response = await fetch(`${BASE_URL}/health`).catch(() => null);
+  if (!response?.ok) {
+    throw new Error(
+      `The API is not reachable at ${BASE_URL}. Start it with the same MONGODB_DB as this script.`,
+    );
+  }
+}
+
 async function run() {
+  await ensureServerIsReachable();
   await connectDb();
   const stamp = Date.now();
   const product = await Product.create({
@@ -71,10 +103,10 @@ async function run() {
     );
     const burstWall = performance.now() - burstStarted;
 
-    const reserved = burst.filter((result) => result.status === 201).length;
-    const soldOut = burst.filter((result) => result.status === 409).length;
+    const reserved = burst.filter((shot) => shot.status === 201).length;
+    const soldOut = burst.filter((shot) => shot.status === 409).length;
     const other = BUYERS - reserved - soldOut;
-    const burstTimes = burst.map((result) => result.ms).sort((a, b) => a - b);
+    const burstTimes = burst.map((shot) => shot.ms).sort((a, b) => a - b);
     const finalDrop = await Drop.findById(drop._id).lean();
     const holds = await Reservation.countDocuments({
       drop: drop._id,
@@ -86,8 +118,9 @@ async function run() {
       Array.from({ length: LATE }, () => fire(drop.id)),
     );
     const lateWall = performance.now() - lateStarted;
-    const lateSoldOut = late.filter((result) => result.status === 409).length;
-    const lateTimes = late.map((result) => result.ms).sort((a, b) => a - b);
+    const lateSoldOut = late.filter((shot) => shot.status === 409).length;
+    const lateTimes = late.map((shot) => shot.ms).sort((a, b) => a - b);
+    const firstError = [...burst, ...late].find((shot) => shot.error)?.error;
 
     const passed =
       reserved === STOCK &&
@@ -101,14 +134,13 @@ async function run() {
     console.log(
       `  stock ${STOCK}, simultaneous buyers ${BUYERS}, latecomers ${LATE}`,
     );
-    console.log(`  201 reserved:               ${reserved}`);
-    console.log(`  409 sold out:               ${soldOut}`);
-    console.log(`  unexpected:                 ${other}`);
+    console.log(`  burst statuses:             ${tally(burst)}`);
+    console.log(`  latecomers statuses:        ${tally(late)}`);
+    if (firstError) console.log(`  first transport error:      ${firstError}`);
     console.log(`  stock left in db:           ${finalDrop?.stockRemaining}`);
     console.log(`  active holds:               ${holds}`);
     console.log(`  burst p50 / p95 / max:      ${describeTimes(burstTimes)}`);
     console.log(`  burst finished in:          ${Math.round(burstWall)} ms`);
-    console.log(`  latecomers 409:             ${lateSoldOut} of ${LATE}`);
     console.log(`  latecomers p50 / p95 / max: ${describeTimes(lateTimes)}`);
     console.log(`  latecomers finished in:     ${Math.round(lateWall)} ms`);
     console.log(passed ? 'RESULT: PASS' : 'RESULT: FAIL');
@@ -121,7 +153,8 @@ async function run() {
   }
 }
 
-run().catch((error) => {
-  console.error(error);
+run().catch(async (error) => {
+  console.error(error instanceof Error ? error.message : error);
+  await mongoose.disconnect();
   process.exit(1);
 });
