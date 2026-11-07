@@ -97,6 +97,12 @@ async function run() {
   });
 
   try {
+    const probe = await fetch(`${BASE_URL}/drops/${drop.id}`).catch(() => null);
+    if (!probe?.ok) {
+      throw new Error(
+        'The API cannot see the test drop. It is probably running with a different MONGODB_DB than this script.',
+      );
+    }
     const burstStarted = performance.now();
     const burst = await Promise.all(
       Array.from({ length: BUYERS }, () => fire(drop.id)),

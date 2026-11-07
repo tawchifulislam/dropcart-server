@@ -255,7 +255,11 @@ export async function setUserRole(
   if (targetId === actorId) {
     throw new AppError(409, 'You cannot change your own role', 'SELF_CHANGE');
   }
-  const user = await User.findByIdAndUpdate(targetId, { role }, { new: true });
+  const user = await User.findByIdAndUpdate(
+    targetId,
+    { role },
+    { returnDocument: 'after' },
+  );
   if (!user) throw new AppError(404, 'User not found', 'NOT_FOUND');
   return {
     id: user.id as string,

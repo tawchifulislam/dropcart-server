@@ -78,7 +78,7 @@ export async function updateProduct(
   const product = await Product.findOneAndUpdate(
     { _id: productId(req.params.id), ...productScope(actor) },
     input,
-    { new: true, runValidators: true },
+    { returnDocument: 'after', runValidators: true },
   ).lean<ProductRecord>();
   if (!product) throw new AppError(404, 'Product not found', 'NOT_FOUND');
   res.json(toProductView(product));

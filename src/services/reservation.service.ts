@@ -76,7 +76,7 @@ function takeStock(dropId: string, quantity: number) {
       stockRemaining: { $gte: quantity },
     },
     { $inc: { stockRemaining: -quantity } },
-    { new: true },
+    { returnDocument: 'after' },
   );
 }
 
@@ -101,7 +101,7 @@ export async function releaseExpiredReservations() {
     const reservation = await Reservation.findOneAndUpdate(
       { status: 'active', expiresAt: { $lte: new Date() } },
       { status: 'expired' },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!reservation) return released;
 
@@ -194,7 +194,7 @@ export async function releaseReservation(
   const reservation = await Reservation.findOneAndUpdate(
     { _id: reservationId, user: userId, status: 'active' },
     { status: 'released' },
-    { new: true },
+    { returnDocument: 'after' },
   );
   if (!reservation) {
     throw new AppError(404, 'Active reservation not found', 'NOT_FOUND');
@@ -203,7 +203,7 @@ export async function releaseReservation(
   const drop = await Drop.findByIdAndUpdate(
     reservation.drop,
     { $inc: { stockRemaining: reservation.quantity } },
-    { new: true },
+    { returnDocument: 'after' },
   );
   forgetSoldOut(reservation.drop.toString());
   if (!drop) throw new AppError(404, 'Drop not found', 'NOT_FOUND');

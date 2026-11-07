@@ -12,7 +12,7 @@ async function run() {
   const user = await User.findOneAndUpdate(
     { email: email.trim().toLowerCase() },
     { role },
-    { new: true },
+    { returnDocument: 'after' },
   );
   if (!user) throw new Error(`No user with the email ${email}`);
   console.log(`${user.email} is now ${user.role}`);
