@@ -142,6 +142,19 @@ describe('authentication', () => {
     expect(stale.status).toBe(200);
     expect(stale.body.user).toBeNull();
   });
+  it('blocks repeated failed sign-ins for the same email', async () => {
+    const body = {
+      email: 'victim@example.com',
+      password: 'wrong-password-1',
+    };
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await api().post('/auth/login').send(body);
+    }
+
+    const blocked = await api().post('/auth/login').send(body);
+
+    expect(blocked.status).toBe(429);
+  });
 });
 
 describe('roles', () => {
