@@ -18,7 +18,7 @@ export function notFound(_req: Request, _res: Response, next: NextFunction) {
 
 export function errorHandler(
   err: unknown,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction,
 ) {
@@ -45,6 +45,6 @@ export function errorHandler(
     });
     return;
   }
-  console.error(err);
+  console.error(`${req.method} ${req.originalUrl}`, err);
   res.status(500).json({ error: 'Internal server error', code: 'INTERNAL' });
 }
