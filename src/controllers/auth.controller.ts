@@ -66,7 +66,11 @@ const publicUser = (user: SessionUser) => ({
 export async function register(req: Request, res: Response) {
   const input = registerSchema.parse(req.body);
   if (await User.exists({ email: input.email })) {
-    throw new AppError(409, 'An account with this email already exists');
+    throw new AppError(
+      409,
+      'An account with this email already exists',
+      'DUPLICATE',
+    );
   }
   const user = await User.create({
     name: input.name,
@@ -86,7 +90,8 @@ export async function login(req: Request, res: Response) {
     input.password,
     user?.passwordHash ?? MISSING_USER_HASH,
   );
-  if (!user || !valid) throw new AppError(401, 'Invalid email or password');
+  if (!user || !valid)
+    throw new AppError(401, 'Invalid email or password', 'INVALID_CREDENTIALS');
   startSession(res, user);
   res.json({ user: publicUser(user) });
 }
@@ -98,7 +103,8 @@ export function logout(_req: Request, res: Response) {
 
 export async function me(req: Request, res: Response) {
   const user = await User.findById(req.auth?.sub);
-  if (!user) throw new AppError(401, 'Account no longer exists');
+  if (!user)
+    throw new AppError(401, 'Account no longer exists', 'UNAUTHENTICATED');
   res.json({ user: publicUser(user) });
 }
 export async function guest(_req: Request, res: Response) {

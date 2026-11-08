@@ -39,7 +39,7 @@ async function runReset(res: Response) {
 export async function scheduledReset(req: Request, res: Response) {
   ensureDemoMode();
   if (!tokenMatches(req.headers['x-demo-token'])) {
-    throw new AppError(401, 'Invalid token', 'UNAUTHORIZED');
+    throw new AppError(401, 'Invalid token', 'UNAUTHENTICATED');
   }
   await runReset(res);
 }

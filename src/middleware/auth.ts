@@ -28,7 +28,10 @@ export const AUTH_COOKIE = 'dropcart_token';
 
 export function authenticate(req: Request, _res: Response, next: NextFunction) {
   const token = req.cookies?.[AUTH_COOKIE];
-  if (!token) return next(new AppError(401, 'Authentication required'));
+  if (!token)
+    return next(
+      new AppError(401, 'Authentication required', 'UNAUTHENTICATED'),
+    );
 
   try {
     const decoded = jwt.verify(token, env.JWT_SECRET);
@@ -40,7 +43,7 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
     };
     next();
   } catch {
-    next(new AppError(401, 'Invalid or expired session'));
+    next(new AppError(401, 'Invalid or expired session', 'UNAUTHENTICATED'));
   }
 }
 

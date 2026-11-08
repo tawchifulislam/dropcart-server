@@ -51,7 +51,7 @@ export async function getProduct(
   const product = await Product.findOne(
     isObjectId(idOrSlug) ? { _id: idOrSlug } : { slug: idOrSlug },
   ).lean<ProductRecord>();
-  if (!product) throw new AppError(404, 'Product not found');
+  if (!product) throw new AppError(404, 'Product not found', 'NOT_FOUND');
   const [view] = await attachActiveDrops([product]);
   res.json(view);
 }

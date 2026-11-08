@@ -23,7 +23,7 @@ export const copilotLimits = [
   limiter(
     86_400_000,
     60,
-    'You have reached today\'s Copilot limit. Please come back tomorrow.',
+    "You have reached today's Copilot limit. Please come back tomorrow.",
   ),
 ];
 export const guestLimit = rateLimit({

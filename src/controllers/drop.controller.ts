@@ -17,6 +17,6 @@ export async function getUpcomingDrops(_req: Request, res: Response) {
 
 export async function getDrop(req: Request<{ id: string }>, res: Response) {
   const drop = isObjectId(req.params.id) ? await findDrop(req.params.id) : null;
-  if (!drop) throw new AppError(404, 'Drop not found');
+  if (!drop) throw new AppError(404, 'Drop not found', 'NOT_FOUND');
   res.json(drop);
 }

@@ -155,6 +155,15 @@ describe('authentication', () => {
 
     expect(blocked.status).toBe(429);
   });
+  it('answers every authentication failure with an error code', async () => {
+    const missing = await api().get('/auth/me');
+    const invalid = await api()
+      .get('/auth/me')
+      .set('Cookie', 'dropcart_token=not-a-token');
+
+    expect(missing.body.code).toBe('UNAUTHENTICATED');
+    expect(invalid.body.code).toBe('UNAUTHENTICATED');
+  });
 });
 
 describe('roles', () => {
