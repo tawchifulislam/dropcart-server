@@ -72,3 +72,11 @@ export function createDrop(productId: string, options: DropOptions = {}) {
     stockRemaining: options.remaining ?? stock,
   });
 }
+export async function createLiveDrop(options: DropOptions = {}) {
+  const product = await createProduct();
+  return createDrop(product.id, options);
+}
+
+export async function stockOf(dropId: string) {
+  return (await Drop.findById(dropId).lean())?.stockRemaining;
+}

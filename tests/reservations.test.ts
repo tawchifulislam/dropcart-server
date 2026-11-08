@@ -18,7 +18,7 @@ import {
   newId,
 } from './helpers';
 
-async function newDrop(options: DropOptions = {}) {
+async function createLiveDrop(options: DropOptions = {}) {
   const product = await createProduct();
   return createDrop(product.id, options);
 }
@@ -37,7 +37,7 @@ const expireNow = (reservationId: Types.ObjectId | string) =>
 
 describe('atomic reservation under concurrency', () => {
   it('lets exactly the stock succeed when 200 buyers race for 10 units', async () => {
-    const drop = await newDrop({ stock: 10 });
+    const drop = await createLiveDrop({ stock: 10 });
 
     const results = await Promise.allSettled(
       Array.from({ length: 200 }, () => reserve(drop.id)),
@@ -60,7 +60,7 @@ describe('atomic reservation under concurrency', () => {
   });
 
   it('never takes more than the stock when buyers ask for several units', async () => {
-    const drop = await newDrop({ stock: 5 });
+    const drop = await createLiveDrop({ stock: 5 });
 
     const results = await Promise.allSettled(
       Array.from({ length: 10 }, () => reserve(drop.id, newId(), 2)),
@@ -76,7 +76,7 @@ describe('atomic reservation under concurrency', () => {
   });
 
   it('keeps the same guarantee through the HTTP API', async () => {
-    const drop = await newDrop({ stock: 8 });
+    const drop = await createLiveDrop({ stock: 8 });
     const server = app.listen(0);
 
     try {
@@ -103,7 +103,7 @@ describe('atomic reservation under concurrency', () => {
 
 describe('reservation rules', () => {
   it('allows one active reservation per user per drop', async () => {
-    const drop = await newDrop({ stock: 10 });
+    const drop = await createLiveDrop({ stock: 10 });
     const userId = newId();
 
     await reserve(drop.id, userId);
@@ -114,11 +114,11 @@ describe('reservation rules', () => {
   });
 
   it('explains why a drop cannot be reserved', async () => {
-    const upcoming = await newDrop({
+    const upcoming = await createLiveDrop({
       startsInMs: 3_600_000,
       endsInMs: 7_200_000,
     });
-    const ended = await newDrop({
+    const ended = await createLiveDrop({
       startsInMs: -7_200_000,
       endsInMs: -3_600_000,
     });
@@ -134,7 +134,7 @@ describe('reservation rules', () => {
   });
 
   it('reports what is left when a request is larger than the stock', async () => {
-    const drop = await newDrop({ stock: 1 });
+    const drop = await createLiveDrop({ stock: 1 });
 
     await expect(reserve(drop.id, newId(), 2)).rejects.toMatchObject({
       code: 'SOLD_OUT',
@@ -143,7 +143,7 @@ describe('reservation rules', () => {
   });
 
   it('returns the stock when a hold is released, once', async () => {
-    const drop = await newDrop({ stock: 3 });
+    const drop = await createLiveDrop({ stock: 3 });
     const userId = newId();
     const { reservation } = await reserve(drop.id, userId);
     expect(await stockOf(drop.id)).toBe(2);
@@ -160,7 +160,7 @@ describe('reservation rules', () => {
   });
 
   it('returns an expired hold to the stock exactly once, even with concurrent sweeps', async () => {
-    const drop = await newDrop({ stock: 4 });
+    const drop = await createLiveDrop({ stock: 4 });
     const { reservation } = await reserve(drop.id);
     await expireNow(reservation._id);
 
@@ -178,7 +178,7 @@ describe('reservation rules', () => {
   });
 
   it('frees a sold-out unit lazily when a hold has expired', async () => {
-    const drop = await newDrop({ stock: 1 });
+    const drop = await createLiveDrop({ stock: 1 });
     const first = await reserve(drop.id);
     await expireNow(first.reservation._id);
 
@@ -192,7 +192,7 @@ describe('reservation rules', () => {
   });
 
   it('lets a user reserve again after their hold expired', async () => {
-    const drop = await newDrop({ stock: 2 });
+    const drop = await createLiveDrop({ stock: 2 });
     const userId = newId();
     const first = await reserve(drop.id, userId);
     await expireNow(first.reservation._id);
@@ -202,7 +202,7 @@ describe('reservation rules', () => {
   });
 
   it('ignores expired holds when looking for the active reservation', async () => {
-    const drop = await newDrop({ stock: 2 });
+    const drop = await createLiveDrop({ stock: 2 });
     const userId = newId();
     const { reservation } = await reserve(drop.id, userId);
     expect(await findActiveReservation(drop.id, userId)).not.toBeNull();
@@ -211,7 +211,7 @@ describe('reservation rules', () => {
     expect(await findActiveReservation(drop.id, userId)).toBeNull();
   });
   it('short-circuits repeated requests for a drop that just sold out', async () => {
-    const drop = await newDrop({ stock: 1 });
+    const drop = await createLiveDrop({ stock: 1 });
     await reserve(drop.id);
     await expect(reserve(drop.id)).rejects.toMatchObject({
       code: 'SOLD_OUT',
@@ -228,7 +228,7 @@ describe('reservation rules', () => {
   });
 
   it('forgets the sold-out memory as soon as stock comes back', async () => {
-    const drop = await newDrop({ stock: 1 });
+    const drop = await createLiveDrop({ stock: 1 });
     const holder = newId();
     const first = await reserve(drop.id, holder);
     await expect(reserve(drop.id)).rejects.toMatchObject({
@@ -241,7 +241,7 @@ describe('reservation rules', () => {
     expect(await stockOf(drop.id)).toBe(0);
   });
   it('answers requests for a drop that just sold out without touching the stock', async () => {
-    const drop = await newDrop({ stock: 1 });
+    const drop = await createLiveDrop({ stock: 1 });
     await reserve(drop.id);
     await expect(reserve(drop.id)).rejects.toMatchObject({
       code: 'SOLD_OUT',
@@ -258,7 +258,7 @@ describe('reservation rules', () => {
   });
 
   it('forgets the sold-out memory as soon as stock comes back', async () => {
-    const drop = await newDrop({ stock: 1 });
+    const drop = await createLiveDrop({ stock: 1 });
     const holder = newId();
     const first = await reserve(drop.id, holder);
     await expect(reserve(drop.id)).rejects.toMatchObject({

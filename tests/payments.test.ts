@@ -41,7 +41,7 @@ const stockOf = async (dropId: string) =>
 
 describe('payment fulfillment', () => {
   it('fulfills a normal payment', async () => {
-    const drop = await newDrop();
+    const drop = await createLiveDrop({ stock: 1 });
     const { order, reservationId } = await pendingOrder(drop.id);
 
     await expect(fulfillOrder(order)).resolves.toBe('paid');
@@ -54,7 +54,7 @@ describe('payment fulfillment', () => {
   });
 
   it('fulfills exactly once when five webhooks arrive at the same time', async () => {
-    const drop = await newDrop();
+    const drop = await createLiveDrop({ stock: 1 });
     const { order, reservationId } = await pendingOrder(drop.id);
 
     const outcomes = await Promise.all(
@@ -73,7 +73,7 @@ describe('payment fulfillment', () => {
   });
 
   it('honors a late payment when the unit is still available', async () => {
-    const drop = await newDrop();
+    const drop = await createLiveDrop({ stock: 1 });
     const { order, reservationId } = await pendingOrder(drop.id);
     await expire(reservationId);
     expect(await stockOf(drop.id)).toBe(1);
@@ -88,7 +88,7 @@ describe('payment fulfillment', () => {
   });
 
   it('refunds a late payment when the unit was taken by someone else', async () => {
-    const drop = await newDrop();
+    const drop = await createLiveDrop({ stock: 1 });
     const { order, reservationId } = await pendingOrder(drop.id);
     await expire(reservationId);
     await reserveUnits({ dropId: drop.id, userId: newId(), quantity: 1 });
@@ -100,7 +100,7 @@ describe('payment fulfillment', () => {
   });
 
   it('does not return the stock of a reservation whose order is already paid', async () => {
-    const drop = await newDrop();
+    const drop = await createLiveDrop({ stock: 1 });
     const userId = newId();
     const { reservation } = await reserveUnits({
       dropId: drop.id,
@@ -129,7 +129,7 @@ describe('payment fulfillment', () => {
 
 describe('checkout', () => {
   it('reuses one order and one session when checkout is requested twice', async () => {
-    const drop = await newDrop(3);
+    const drop = await createLiveDrop({ stock: 3 });
     const userId = newId();
     const { reservation } = await reserveUnits({
       dropId: drop.id,
@@ -146,7 +146,7 @@ describe('checkout', () => {
   });
 
   it('refuses to start checkout for an expired reservation', async () => {
-    const drop = await newDrop(3);
+    const drop = await createLiveDrop({ stock: 3 });
     const userId = newId();
     const { reservation } = await reserveUnits({
       dropId: drop.id,
@@ -163,7 +163,7 @@ describe('checkout', () => {
   });
 
   it('cancels the pending order when the hold is released', async () => {
-    const drop = await newDrop(3);
+    const drop = await createLiveDrop({ stock: 3 });
     const { order, userId, reservationId } = await pendingOrder(drop.id);
 
     await releaseReservation(reservationId, userId);
@@ -174,7 +174,7 @@ describe('checkout', () => {
   });
 
   it('confirms a mock payment for its owner only', async () => {
-    const drop = await newDrop(3);
+    const drop = await createLiveDrop({ stock: 3 });
     const { order, userId } = await pendingOrder(drop.id);
     const orderId = order._id.toString();
 
