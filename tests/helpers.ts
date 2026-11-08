@@ -18,7 +18,7 @@ const nextNumber = () => {
 export const newId = () => new Types.ObjectId().toString();
 
 export const cookieFor = (userId: string) =>
-  `${AUTH_COOKIE}=${jwt.sign({ sub: userId, role: 'shopper' }, env.JWT_SECRET, { expiresIn: 600 })}`;
+  `${AUTH_COOKIE}=${jwt.sign({ sub: userId }, env.JWT_SECRET, { expiresIn: 600 })}`;
 
 export async function createUser(role: Role = 'shopper') {
   const n = nextNumber();

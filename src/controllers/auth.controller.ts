@@ -46,7 +46,8 @@ interface SessionUser {
 }
 
 function startSession(res: Response, user: SessionUser) {
-  const token = jwt.sign({ sub: user.id, role: user.role }, env.JWT_SECRET, {
+  const token = jwt.sign({ sub: user.id }, env.JWT_SECRET, {
+    algorithm: 'HS256',
     expiresIn: env.JWT_TTL_SECONDS,
   });
   res.cookie(AUTH_COOKIE, token, {

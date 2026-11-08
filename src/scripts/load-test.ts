@@ -20,7 +20,7 @@ interface Shot {
 
 async function fire(dropId: string): Promise<Shot> {
   const token = jwt.sign(
-    { sub: new Types.ObjectId().toString(), role: 'shopper' },
+    { sub: new Types.ObjectId().toString() },
     env.JWT_SECRET,
     {
       expiresIn: 600,

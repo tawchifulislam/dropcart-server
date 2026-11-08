@@ -28,21 +28,31 @@ export const AUTH_COOKIE = 'dropcart_token';
 
 export function authenticate(req: Request, _res: Response, next: NextFunction) {
   const token = req.cookies?.[AUTH_COOKIE];
-  if (!token)
+
+  if (!token) {
     return next(
       new AppError(401, 'Authentication required', 'UNAUTHENTICATED'),
     );
+  }
 
   try {
-    const decoded = jwt.verify(token, env.JWT_SECRET);
-    if (typeof decoded === 'string' || !decoded.sub)
-      throw new Error('Malformed token');
+    const decoded = jwt.verify(token, env.JWT_SECRET, {
+      algorithms: ['HS256'],
+    });
+
+    if (typeof decoded === 'string' || !decoded.sub) {
+      throw new AppError(401, 'Malformed token', 'UNAUTHENTICATED');
+    }
+
     req.auth = {
       sub: decoded.sub,
       role: decoded.role === 'admin' ? 'admin' : 'shopper',
     };
     next();
-  } catch {
+  } catch (error) {
+    if (error instanceof AppError) {
+      return next(error);
+    }
     next(new AppError(401, 'Invalid or expired session', 'UNAUTHENTICATED'));
   }
 }
@@ -56,18 +66,24 @@ export function currentUserId(req: Request) {
 
 export function requireRole(...roles: Role[]) {
   return async (req: Request, _res: Response, next: NextFunction) => {
-    const user = await User.findById(currentUserId(req))
-      .select('role')
-      .lean<{ _id: Types.ObjectId; role: Role }>();
-    if (!user || !roles.includes(user.role)) {
-      throw new AppError(
-        403,
-        'You do not have access to this area',
-        'FORBIDDEN',
-      );
+    try {
+      const user = await User.findById(currentUserId(req))
+        .select('role')
+        .lean<{ _id: Types.ObjectId; role: Role }>();
+
+      if (!user || !roles.includes(user.role)) {
+        throw new AppError(
+          403,
+          'You do not have access to this area',
+          'FORBIDDEN',
+        );
+      }
+
+      req.actor = { id: user._id.toString(), role: user.role };
+      next();
+    } catch (error) {
+      next(error);
     }
-    req.actor = { id: user._id.toString(), role: user.role };
-    next();
   };
 }
 

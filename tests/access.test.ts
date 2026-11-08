@@ -4,6 +4,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Cart } from '../src/models/Cart';
 import { User } from '../src/models/User';
 import { app, createDrop, createProduct, createUser, newId } from './helpers';
+import { env } from '../src/config/env';
+import { AUTH_COOKIE } from '../src/middleware/auth';
+import jwt from 'jsonwebtoken';
 
 let server: Server;
 
@@ -163,6 +166,18 @@ describe('authentication', () => {
 
     expect(missing.body.code).toBe('UNAUTHENTICATED');
     expect(invalid.body.code).toBe('UNAUTHENTICATED');
+  });
+  it('rejects a token signed with another algorithm', async () => {
+    const forged = jwt.sign({ sub: newId() }, env.JWT_SECRET, {
+      algorithm: 'HS512',
+      expiresIn: 600,
+    });
+
+    const response = await api()
+      .get('/auth/me')
+      .set('Cookie', `${AUTH_COOKIE}=${forged}`);
+
+    expect(response.status).toBe(401);
   });
 });
 
