@@ -1,6 +1,5 @@
 import { Types } from 'mongoose';
 import { describe, expect, it, vi } from 'vitest';
-import { Drop } from '../src/models/Drop';
 import { Order, type OrderRecord } from '../src/models/Order';
 import { Reservation } from '../src/models/Reservation';
 import {
@@ -13,12 +12,7 @@ import {
   releaseReservation,
   reserveUnits,
 } from '../src/services/reservation.service';
-import { createDrop, createProduct, newId } from './helpers';
-
-async function newDrop(stock = 1) {
-  const product = await createProduct();
-  return createDrop(product.id, { stock });
-}
+import { createLiveDrop, newId, stockOf } from './helpers';
 
 async function pendingOrder(dropId: string, userId = newId()) {
   const { reservation } = await reserveUnits({ dropId, userId, quantity: 1 });
@@ -35,9 +29,6 @@ async function expire(reservationId: Types.ObjectId | string) {
   );
   await releaseExpiredReservations();
 }
-
-const stockOf = async (dropId: string) =>
-  (await Drop.findById(dropId).lean())?.stockRemaining;
 
 describe('payment fulfillment', () => {
   it('fulfills a normal payment', async () => {

@@ -9,22 +9,7 @@ import {
   releaseReservation,
   reserveUnits,
 } from '../src/services/reservation.service';
-import {
-  type DropOptions,
-  app,
-  cookieFor,
-  createDrop,
-  createProduct,
-  newId,
-} from './helpers';
-
-async function createLiveDrop(options: DropOptions = {}) {
-  const product = await createProduct();
-  return createDrop(product.id, options);
-}
-
-const stockOf = async (dropId: string) =>
-  (await Drop.findById(dropId).lean())?.stockRemaining;
+import { app, cookieFor, createLiveDrop, newId, stockOf } from './helpers';
 
 const reserve = (dropId: string, userId = newId(), quantity = 1) =>
   reserveUnits({ dropId, userId, quantity });
